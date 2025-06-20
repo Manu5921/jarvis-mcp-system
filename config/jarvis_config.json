@@ -1,0 +1,81 @@
+{
+  "server": {
+    "host": "0.0.0.0",
+    "port": 8000,
+    "reload": true,
+    "workers": 1
+  },
+  "database": {
+    "url": "sqlite+aiosqlite:///./jarvis_mcp.db",
+    "echo": false,
+    "pool_size": 10,
+    "max_overflow": 20
+  },
+  "agents": {
+    "ollama": {
+      "enabled": true,
+      "base_url": "http://localhost:11434",
+      "model": "llama3.2:8b",
+      "timeout": 60,
+      "max_tokens": 4096,
+      "temperature": 0.7,
+      "capabilities": ["general", "code", "analysis"],
+      "priority": 1
+    },
+    "claude": {
+      "enabled": true,
+      "api_key_env": "ANTHROPIC_API_KEY",
+      "model": "claude-3-sonnet-20240229",
+      "max_tokens": 4096,
+      "temperature": 0.3,
+      "capabilities": ["code", "analysis", "writing"],
+      "priority": 2
+    },
+    "openai": {
+      "enabled": true,
+      "api_key_env": "OPENAI_API_KEY",
+      "model": "gpt-4-turbo-preview",
+      "max_tokens": 4096,
+      "temperature": 0.5,
+      "capabilities": ["creative", "general", "coding"],
+      "priority": 3
+    }
+  },
+  "routing": {
+    "auto_switch_threshold": 0.7,
+    "default_agent": "ollama",
+    "parallel_processing": true,
+    "max_parallel_agents": 2,
+    "rules": {
+      "code": ["claude", "ollama"],
+      "creative": ["openai", "ollama"],
+      "analysis": ["claude", "ollama"],
+      "general": ["ollama", "openai"],
+      "translation": ["openai"]
+    }
+  },
+  "memory": {
+    "embedding_model": "sentence-transformers/all-MiniLM-L6-v2",
+    "vector_dimensions": 384,
+    "similarity_threshold": 0.8,
+    "max_context_messages": 20
+  },
+  "security": {
+    "secret_key": "your-secret-key-change-in-production",
+    "algorithm": "HS256",
+    "access_token_expire_minutes": 1440
+  },
+  "logging": {
+    "level": "INFO",
+    "format": "json",
+    "file": "logs/jarvis.log"
+  },
+  "redis": {
+    "url": "redis://localhost:6379/0",
+    "session_ttl": 86400
+  },
+  "websocket": {
+    "max_connections": 100,
+    "heartbeat_interval": 30
+  }
+}

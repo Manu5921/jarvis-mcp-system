@@ -1,0 +1,962 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Jarvis MCP Advanced - Personal AI Hub</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        .mcp-card { backdrop-filter: blur(10px); background: rgba(0, 0, 0, 0.3); }
+        .mcp-status-indicator { width: 8px; height: 8px; border-radius: 50%; }
+        .mcp-status-online { background: #10b981; box-shadow: 0 0 8px #10b981; }
+        .mcp-status-offline { background: #ef4444; }
+        .mcp-response { animation: fadeInUp 0.5s ease-in-out; }
+        .mcp-streaming { border-left: 3px solid #3b82f6; padding-left: 12px; }
+        .mcp-tool-result { background: linear-gradient(135deg, rgba(59, 130, 246, 0.1), rgba(16, 185, 129, 0.1)); }
+        @keyframes fadeInUp {
+            from { opacity: 0; transform: translateY(20px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.5; }
+        }
+        .pulse-animation { animation: pulse 2s infinite; }
+        .typing-indicator::after {
+            content: '...';
+            animation: pulse 1.5s infinite;
+        }
+    </style>
+</head>
+<body class="bg-gradient-to-br from-slate-900 via-blue-900 to-slate-900 min-h-screen text-white">
+    
+    <!-- Header with Real-time Status -->
+    <header class="border-b border-white/10 bg-black/20 backdrop-blur-sm">
+        <div class="container mx-auto px-4 py-4">
+            <div class="flex justify-between items-center">
+                <div class="flex items-center gap-4">
+                    <h1 class="text-2xl font-bold bg-gradient-to-r from-blue-400 to-purple-400 bg-clip-text text-transparent">
+                        🧠 Jarvis MCP Advanced
+                    </h1>
+                    <div id="connection-status" class="flex items-center gap-2 text-sm">
+                        <div id="websocket-indicator" class="mcp-status-indicator mcp-status-offline"></div>
+                        <span id="connection-text">Connecting...</span>
+                    </div>
+                </div>
+                <div class="flex gap-4 text-sm">
+                    <div id="mcp-servers-status" class="flex gap-2"></div>
+                    <button onclick="toggleMCPStatus()" class="px-3 py-1 bg-white/10 rounded-md hover:bg-white/20 transition-colors">
+                        🔧 MCP Status
+                    </button>
+                    <button onclick="toggleHistory()" class="px-3 py-1 bg-white/10 rounded-md hover:bg-white/20 transition-colors">
+                        📚 Historique
+                    </button>
+                </div>
+            </div>
+        </div>
+    </header>
+
+    <div class="container mx-auto px-4 py-8 grid grid-cols-1 xl:grid-cols-4 gap-8">
+        
+        <!-- Main Chat Interface (2/3 width) -->
+        <div class="xl:col-span-3">
+            <div class="mcp-card rounded-xl border border-white/10 p-6">
+                <h2 class="text-xl font-semibold mb-6 flex items-center gap-2">
+                    💬 Advanced MCP Chat Interface
+                    <div class="ml-auto flex items-center gap-4">
+                        <select id="ai-selector" class="text-sm bg-white/10 border border-white/20 rounded px-3 py-1 text-white">
+                            <option value="auto">🤖 Auto-Select</option>
+                            <option value="ollama">🦙 Ollama Local</option>
+                            <option value="perplexity">🔍 Perplexity Pro</option>
+                            <option value="claude-prompt">🤖 Claude Prompt</option>
+                            <option value="chatgpt-prompt">💭 ChatGPT Prompt</option>
+                        </select>
+                        <label class="flex items-center gap-2">
+                            <input type="checkbox" id="streaming-mode" class="rounded">
+                            <span class="text-sm">Streaming</span>
+                        </label>
+                    </div>
+                </h2>
+                
+                <!-- MCP Tools Selection -->
+                <div class="mb-4 p-3 bg-white/5 rounded-lg">
+                    <label class="block text-sm font-medium text-gray-300 mb-2">Outils MCP requis :</label>
+                    <div id="mcp-tools-selection" class="flex flex-wrap gap-2">
+                        <!-- Populated by JavaScript -->
+                    </div>
+                </div>
+                
+                <!-- Query Input -->
+                <div class="space-y-4">
+                    <div>
+                        <label class="block text-sm font-medium text-gray-300 mb-2">Votre question :</label>
+                        <textarea id="query-input" 
+                                  placeholder="Ex: Analyse ce code Python ou recherche les dernières nouvelles sur l'IA"
+                                  class="w-full h-24 bg-white/5 border border-white/20 rounded-lg px-4 py-3 text-white placeholder-gray-400 focus:border-blue-400 focus:outline-none resize-none"></textarea>
+                    </div>
+                    
+                    <div class="grid grid-cols-2 gap-4">
+                        <div>
+                            <label class="block text-sm font-medium text-gray-300 mb-2">Projet :</label>
+                            <input id="project-input" 
+                                   placeholder="Ex: Jarvis-MCP, MonApp"
+                                   class="w-full bg-white/5 border border-white/20 rounded-lg px-4 py-2 text-white placeholder-gray-400 focus:border-blue-400 focus:outline-none">
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-300 mb-2">Contexte :</label>
+                            <input id="context-input" 
+                                   placeholder="Ex: Backend FastAPI, Debug session"
+                                   class="w-full bg-white/5 border border-white/20 rounded-lg px-4 py-2 text-white placeholder-gray-400 focus:border-blue-400 focus:outline-none">
+                        </div>
+                    </div>
+                    
+                    <button id="submit-btn" 
+                            onclick="submitMCPQuery()"
+                            class="w-full bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white font-semibold py-3 px-6 rounded-lg transition-all duration-200 transform hover:scale-105">
+                        🚀 Envoyer via MCP
+                    </button>
+                </div>
+            </div>
+            
+            <!-- Response Area -->
+            <div id="response-area" class="mt-8 hidden">
+                <div class="mcp-card rounded-xl border border-white/10 p-6">
+                    <div class="flex justify-between items-center mb-4">
+                        <h3 class="text-lg font-semibold flex items-center gap-2">
+                            <span id="response-title">Réponse MCP :</span>
+                            <div id="agents-used" class="flex gap-1"></div>
+                        </h3>
+                        <div class="flex gap-2">
+                            <button id="copy-response-btn" 
+                                    onclick="copyResponse()"
+                                    class="px-3 py-1 bg-green-600 hover:bg-green-700 rounded text-sm transition-all">
+                                📋 Copier
+                            </button>
+                            <button onclick="regenerateResponse()"
+                                    class="px-3 py-1 bg-blue-600 hover:bg-blue-700 rounded text-sm transition-all">
+                                🔄 Régénérer
+                            </button>
+                        </div>
+                    </div>
+                    
+                    <!-- Streaming Response -->
+                    <div id="streaming-response" class="hidden">
+                        <div class="mcp-streaming bg-white/5 rounded-lg p-4 mb-4">
+                            <div class="flex items-center gap-2 mb-2">
+                                <div class="pulse-animation">⚡</div>
+                                <span class="text-sm text-blue-300">Streaming en cours...</span>
+                            </div>
+                            <div id="streaming-content" class="text-gray-100 whitespace-pre-wrap font-mono text-sm"></div>
+                        </div>
+                    </div>
+                    
+                    <!-- Regular Response -->
+                    <div id="response-content" class="bg-white/5 rounded-lg p-4 text-gray-100 whitespace-pre-wrap font-mono text-sm max-h-96 overflow-y-auto"></div>
+                    
+                    <!-- MCP Tool Results -->
+                    <div id="tool-results" class="mt-4 hidden">
+                        <h4 class="text-md font-semibold mb-2">🛠️ Résultats des outils MCP :</h4>
+                        <div id="tool-results-content" class="space-y-2"></div>
+                    </div>
+                    
+                    <!-- Response Metadata -->
+                    <div id="response-metadata" class="mt-4 text-xs text-gray-400 border-t border-white/10 pt-2">
+                        <!-- Populated by JavaScript -->
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Optimized Prompt Area -->
+            <div id="prompt-area" class="mt-8 hidden">
+                <div class="mcp-card rounded-xl border border-white/10 p-6">
+                    <div class="flex justify-between items-center mb-4">
+                        <h3 class="text-lg font-semibold">✨ Prompt Optimisé :</h3>
+                        <button id="copy-prompt-btn" 
+                                onclick="copyPrompt()"
+                                class="px-3 py-1 bg-blue-600 hover:bg-blue-700 rounded text-sm transition-all">
+                            📋 Copier le Prompt
+                        </button>
+                    </div>
+                    <div id="prompt-content" class="bg-white/5 rounded-lg p-4 text-blue-100 whitespace-pre-wrap text-sm max-h-64 overflow-y-auto"></div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Sidebar (1/3 width) -->
+        <div class="xl:col-span-1 space-y-6">
+            
+            <!-- MCP Ecosystem Status -->
+            <div class="mcp-card rounded-xl border border-white/10 p-6">
+                <h3 class="text-lg font-semibold mb-4 flex items-center gap-2">
+                    🔧 MCP Ecosystem
+                    <div id="ecosystem-health" class="ml-auto text-xs px-2 py-1 rounded"></div>
+                </h3>
+                <div id="mcp-servers-detail" class="space-y-3 text-sm">
+                    <!-- Populated by JavaScript -->
+                </div>
+            </div>
+            
+            <!-- Quick Stats -->
+            <div class="mcp-card rounded-xl border border-white/10 p-6">
+                <h3 class="text-lg font-semibold mb-4">📊 Statistiques</h3>
+                <div id="stats-content" class="space-y-3 text-sm">
+                    <div class="flex justify-between">
+                        <span class="text-gray-300">WebSocket:</span>
+                        <span id="websocket-status">-</span>
+                    </div>
+                    <div class="flex justify-between">
+                        <span class="text-gray-300">Sessions MCP:</span>
+                        <span id="mcp-sessions">-</span>
+                    </div>
+                    <div class="flex justify-between">
+                        <span class="text-gray-300">Total conversations:</span>
+                        <span id="total-convs">-</span>
+                    </div>
+                    <div class="flex justify-between">
+                        <span class="text-gray-300">Cette semaine:</span>
+                        <span id="week-convs">-</span>
+                    </div>
+                    <div class="text-xs text-gray-400 mt-4 space-y-1">
+                        <div class="flex justify-between">
+                            <span>🦙 Ollama:</span>
+                            <span id="ollama-count">-</span>
+                        </div>
+                        <div class="flex justify-between">
+                            <span>🔍 Perplexity:</span>
+                            <span id="perplexity-count">-</span>
+                        </div>
+                        <div class="flex justify-between">
+                            <span>🧠 Memory:</span>
+                            <span id="memory-count">-</span>
+                        </div>
+                        <div class="flex justify-between">
+                            <span>🛠️ Tools:</span>
+                            <span id="tools-count">-</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Recent Conversations -->
+            <div class="mcp-card rounded-xl border border-white/10 p-6">
+                <h3 class="text-lg font-semibold mb-4">🕒 Récent</h3>
+                <div id="recent-conversations" class="space-y-3">
+                    <!-- Populated by JavaScript -->
+                </div>
+            </div>
+            
+        </div>
+    </div>
+    
+    <!-- MCP Status Modal -->
+    <div id="mcp-status-modal" class="fixed inset-0 z-50 hidden bg-black/50 backdrop-blur-sm">
+        <div class="min-h-screen flex items-center justify-center p-4">
+            <div class="bg-slate-800 rounded-xl border border-white/20 w-full max-w-4xl max-h-[80vh] overflow-hidden">
+                <div class="p-6 border-b border-white/10 flex justify-between items-center">
+                    <h2 class="text-xl font-semibold">🔧 MCP Ecosystem Status</h2>
+                    <button onclick="toggleMCPStatus()" class="text-gray-400 hover:text-white">✕</button>
+                </div>
+                <div id="mcp-status-content" class="p-6 overflow-y-auto max-h-96">
+                    <!-- Populated by JavaScript -->
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- History Modal -->
+    <div id="history-modal" class="fixed inset-0 z-50 hidden bg-black/50 backdrop-blur-sm">
+        <div class="min-h-screen flex items-center justify-center p-4">
+            <div class="bg-slate-800 rounded-xl border border-white/20 w-full max-w-4xl max-h-[80vh] overflow-hidden">
+                <div class="p-6 border-b border-white/10 flex justify-between items-center">
+                    <h2 class="text-xl font-semibold">📚 Historique MCP</h2>
+                    <button onclick="toggleHistory()" class="text-gray-400 hover:text-white">✕</button>
+                </div>
+                <div id="history-content" class="p-6 overflow-y-auto max-h-96">
+                    <!-- Populated by JavaScript -->
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const MCP_HUB_URL = 'http://localhost:4000';
+        const MCP_WS_URL = 'ws://localhost:4000';
+        
+        let websocket = null;
+        let sessionId = null;
+        let currentResponse = '';
+        let currentPrompt = '';
+        let streamingActive = false;
+        let availableTools = {};
+
+        // Initialize application
+        document.addEventListener('DOMContentLoaded', function() {
+            initializeWebSocket();
+            loadMCPStatus();
+            loadStats();
+            loadRecentConversations();
+            loadAvailableTools();
+            
+            // Auto-refresh every 30 seconds
+            setInterval(() => {
+                if (!streamingActive) {
+                    loadMCPStatus();
+                    loadStats();
+                }
+            }, 30000);
+        });
+
+        // WebSocket Management
+        function initializeWebSocket() {
+            sessionId = generateSessionId();
+            
+            try {
+                websocket = new WebSocket(`${MCP_WS_URL}/mcp/ws/${sessionId}`);
+                
+                websocket.onopen = function(event) {
+                    updateConnectionStatus(true, 'Connected');
+                    console.log('WebSocket connected:', sessionId);
+                };
+                
+                websocket.onmessage = function(event) {
+                    const data = JSON.parse(event.data);
+                    handleWebSocketMessage(data);
+                };
+                
+                websocket.onclose = function(event) {
+                    updateConnectionStatus(false, 'Disconnected');
+                    console.log('WebSocket disconnected');
+                    
+                    // Reconnect after 5 seconds
+                    setTimeout(() => {
+                        if (!websocket || websocket.readyState === WebSocket.CLOSED) {
+                            initializeWebSocket();
+                        }
+                    }, 5000);
+                };
+                
+                websocket.onerror = function(error) {
+                    updateConnectionStatus(false, 'Error');
+                    console.error('WebSocket error:', error);
+                };
+                
+            } catch (error) {
+                updateConnectionStatus(false, 'Failed to connect');
+                console.error('Failed to initialize WebSocket:', error);
+            }
+        }
+
+        function handleWebSocketMessage(data) {
+            console.log('WebSocket message:', data);
+            
+            switch (data.type) {
+                case 'connection':
+                    updateAvailableServers(data.available_servers);
+                    break;
+                    
+                case 'mcp_response':
+                    handleMCPResponse(data);
+                    break;
+                    
+                case 'stream_start':
+                    startStreamingResponse(data);
+                    break;
+                    
+                case 'stream_chunk':
+                    appendStreamingChunk(data);
+                    break;
+                    
+                case 'stream_end':
+                    endStreamingResponse(data);
+                    break;
+                    
+                case 'stream_error':
+                    handleStreamingError(data);
+                    break;
+                    
+                case 'error':
+                    showError(data.error);
+                    break;
+            }
+        }
+
+        function updateConnectionStatus(connected, message) {
+            const indicator = document.getElementById('websocket-indicator');
+            const text = document.getElementById('connection-text');
+            
+            if (connected) {
+                indicator.className = 'mcp-status-indicator mcp-status-online';
+                text.textContent = message;
+                text.className = 'text-green-400';
+            } else {
+                indicator.className = 'mcp-status-indicator mcp-status-offline';
+                text.textContent = message;
+                text.className = 'text-red-400';
+            }
+            
+            document.getElementById('websocket-status').textContent = connected ? 'Connected' : 'Disconnected';
+        }
+
+        // MCP Query Submission
+        async function submitMCPQuery() {
+            const queryInput = document.getElementById('query-input');
+            const projectInput = document.getElementById('project-input');
+            const contextInput = document.getElementById('context-input');
+            const aiSelector = document.getElementById('ai-selector');
+            const streamingMode = document.getElementById('streaming-mode');
+            const submitBtn = document.getElementById('submit-btn');
+            
+            const query = queryInput.value.trim();
+            if (!query) {
+                alert('Veuillez saisir une question');
+                return;
+            }
+            
+            const selectedTools = getSelectedTools();
+            const aiTarget = aiSelector.value;
+            const project = projectInput.value.trim() || null;
+            const context = contextInput.value.trim() || null;
+            const streaming = streamingMode.checked;
+            
+            // UI Loading state
+            submitBtn.textContent = '⏳ Traitement MCP...';
+            submitBtn.disabled = true;
+            
+            try {
+                if (streaming && websocket && websocket.readyState === WebSocket.OPEN) {
+                    // Send streaming request via WebSocket
+                    websocket.send(JSON.stringify({
+                        type: 'streaming_request',
+                        message: query,
+                        agent: aiTarget,
+                        context: { project, context },
+                        tools: selectedTools
+                    }));
+                } else if (websocket && websocket.readyState === WebSocket.OPEN) {
+                    // Send regular MCP request via WebSocket
+                    websocket.send(JSON.stringify({
+                        type: 'mcp_request',
+                        message: query,
+                        context: { project, context },
+                        tools: selectedTools.map(tool => ({
+                            tool_name: tool.split(':')[1],
+                            server_name: tool.split(':')[0],
+                            arguments: {}
+                        }))
+                    }));
+                } else {
+                    // Fallback to HTTP
+                    await submitHTTPQuery(query, aiTarget, project, context, selectedTools);
+                }
+                
+            } catch (error) {
+                showError('Erreur: ' + error.message);
+            } finally {
+                submitBtn.textContent = '🚀 Envoyer via MCP';
+                submitBtn.disabled = false;
+            }
+        }
+
+        async function submitHTTPQuery(query, aiTarget, project, context, selectedTools) {
+            let endpoint = '';
+            let payload = { 
+                message: query, 
+                project, 
+                context,
+                session_id: sessionId,
+                tools_needed: selectedTools
+            };
+            
+            if (aiTarget === 'auto' || aiTarget === 'ollama' || aiTarget === 'perplexity') {
+                endpoint = '/mcp/chat';
+                payload.agent = aiTarget;
+            } else {
+                endpoint = '/mcp/optimize-prompt';
+                payload = { 
+                    original_prompt: query, 
+                    target_ai: aiTarget.replace('-prompt', ''), 
+                    context, 
+                    project 
+                };
+            }
+            
+            const response = await fetch(MCP_HUB_URL + endpoint, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(payload)
+            });
+            
+            const data = await response.json();
+            
+            if (data.optimized_prompt) {
+                currentPrompt = data.optimized_prompt;
+                showPrompt(currentPrompt);
+                
+                if (data.response) {
+                    currentResponse = data.response;
+                    showResponse(data);
+                }
+            } else if (data.response) {
+                currentResponse = data.response;
+                showResponse(data);
+            }
+            
+            // Refresh data
+            loadStats();
+            loadRecentConversations();
+        }
+
+        // Response Handling
+        function handleMCPResponse(data) {
+            showResponse(data);
+            loadStats();
+            loadRecentConversations();
+        }
+
+        function startStreamingResponse(data) {
+            streamingActive = true;
+            const responseArea = document.getElementById('response-area');
+            const streamingDiv = document.getElementById('streaming-response');
+            const streamingContent = document.getElementById('streaming-content');
+            
+            responseArea.classList.remove('hidden');
+            streamingDiv.classList.remove('hidden');
+            streamingContent.textContent = '';
+            
+            document.getElementById('response-title').textContent = `Streaming (${data.agent_used}):`;
+        }
+
+        function appendStreamingChunk(data) {
+            const streamingContent = document.getElementById('streaming-content');
+            streamingContent.textContent += data.chunk;
+            streamingContent.scrollTop = streamingContent.scrollHeight;
+        }
+
+        function endStreamingResponse(data) {
+            streamingActive = false;
+            const streamingDiv = document.getElementById('streaming-response');
+            const responseContent = document.getElementById('response-content');
+            
+            streamingDiv.classList.add('hidden');
+            responseContent.textContent = data.final_response;
+            currentResponse = data.final_response;
+            
+            updateResponseMetadata({
+                agent_used: data.agent_used,
+                total_chunks: data.total_chunks,
+                streaming: true,
+                timestamp: data.timestamp
+            });
+        }
+
+        function handleStreamingError(data) {
+            streamingActive = false;
+            showError(`Streaming error: ${data.error}`);
+        }
+
+        function showResponse(data) {
+            const responseArea = document.getElementById('response-area');
+            const responseContent = document.getElementById('response-content');
+            const agentsUsed = document.getElementById('agents-used');
+            
+            responseContent.textContent = data.response || currentResponse;
+            responseArea.classList.remove('hidden');
+            responseArea.classList.add('mcp-response');
+            
+            // Show agents used
+            if (data.agents_used) {
+                agentsUsed.innerHTML = '';
+                data.agents_used.forEach(agent => {
+                    const badge = document.createElement('span');
+                    badge.className = 'px-2 py-1 bg-blue-600 text-xs rounded';
+                    badge.textContent = agent;
+                    agentsUsed.appendChild(badge);
+                });
+            }
+            
+            // Show tool results
+            if (data.tool_results && Object.keys(data.tool_results).length > 0) {
+                showToolResults(data.tool_results);
+            }
+            
+            updateResponseMetadata(data);
+        }
+
+        function showToolResults(toolResults) {
+            const toolResultsDiv = document.getElementById('tool-results');
+            const toolResultsContent = document.getElementById('tool-results-content');
+            
+            toolResultsContent.innerHTML = '';
+            
+            Object.entries(toolResults).forEach(([toolName, result]) => {
+                const resultDiv = document.createElement('div');
+                resultDiv.className = 'mcp-tool-result p-3 rounded border border-white/20';
+                resultDiv.innerHTML = `
+                    <div class="font-semibold text-sm text-blue-300">${toolName}</div>
+                    <div class="text-xs text-gray-300 mt-1">${JSON.stringify(result, null, 2)}</div>
+                `;
+                toolResultsContent.appendChild(resultDiv);
+            });
+            
+            toolResultsDiv.classList.remove('hidden');
+        }
+
+        function updateResponseMetadata(data) {
+            const metadata = document.getElementById('response-metadata');
+            metadata.innerHTML = `
+                <div class="flex justify-between items-center">
+                    <span>Agent: ${data.agent_used || 'Unknown'}</span>
+                    <span>Session: ${sessionId}</span>
+                    <span>Time: ${data.response_time_ms || data.processing_time_ms || 0}ms</span>
+                    <span>${data.timestamp || new Date().toLocaleTimeString()}</span>
+                </div>
+            `;
+        }
+
+        function showPrompt(prompt) {
+            const promptArea = document.getElementById('prompt-area');
+            const promptContent = document.getElementById('prompt-content');
+            
+            promptContent.textContent = prompt;
+            promptArea.classList.remove('hidden');
+            promptArea.classList.add('mcp-response');
+        }
+
+        function showError(message) {
+            const responseArea = document.getElementById('response-area');
+            const responseContent = document.getElementById('response-content');
+            
+            responseContent.innerHTML = `<div class="text-red-400">❌ ${message}</div>`;
+            responseArea.classList.remove('hidden');
+        }
+
+        // Tools Management
+        async function loadAvailableTools() {
+            try {
+                const response = await fetch(`${MCP_HUB_URL}/mcp/tools`);
+                const data = await response.json();
+                availableTools = data.tools_by_server || {};
+                
+                updateToolsSelection();
+            } catch (error) {
+                console.error('Error loading tools:', error);
+            }
+        }
+
+        function updateToolsSelection() {
+            const container = document.getElementById('mcp-tools-selection');
+            container.innerHTML = '';
+            
+            Object.entries(availableTools).forEach(([serverName, tools]) => {
+                if (tools.error) return;
+                
+                tools.forEach(tool => {
+                    const toolElement = document.createElement('label');
+                    toolElement.className = 'flex items-center gap-2 text-xs cursor-pointer';
+                    toolElement.innerHTML = `
+                        <input type="checkbox" value="${serverName}:${tool.name}" class="mcp-tool-checkbox rounded">
+                        <span class="px-2 py-1 bg-white/10 rounded">${serverName}:${tool.name}</span>
+                    `;
+                    container.appendChild(toolElement);
+                });
+            });
+        }
+
+        function getSelectedTools() {
+            const checkboxes = document.querySelectorAll('.mcp-tool-checkbox:checked');
+            return Array.from(checkboxes).map(cb => cb.value);
+        }
+
+        // Status and Statistics
+        async function loadMCPStatus() {
+            try {
+                const response = await fetch(`${MCP_HUB_URL}/mcp/status`);
+                const data = await response.json();
+                
+                updateMCPServersStatus(data.mcp_servers || {});
+                updateEcosystemHealth(data.ecosystem_health || {});
+                updateMCPSessions(data.active_sessions || 0);
+                
+            } catch (error) {
+                console.error('Error loading MCP status:', error);
+            }
+        }
+
+        function updateMCPServersStatus(servers) {
+            const container = document.getElementById('mcp-servers-status');
+            const detailContainer = document.getElementById('mcp-servers-detail');
+            
+            container.innerHTML = '';
+            detailContainer.innerHTML = '';
+            
+            Object.entries(servers).forEach(([name, status]) => {
+                // Header indicators
+                const indicator = document.createElement('div');
+                indicator.className = `mcp-status-indicator ${status.connected ? 'mcp-status-online' : 'mcp-status-offline'}`;
+                indicator.title = `${name}: ${status.connected ? 'Online' : 'Offline'}`;
+                container.appendChild(indicator);
+                
+                // Detailed status
+                const detail = document.createElement('div');
+                detail.className = 'flex justify-between items-center';
+                detail.innerHTML = `
+                    <div class="flex items-center gap-2">
+                        <div class="mcp-status-indicator ${status.connected ? 'mcp-status-online' : 'mcp-status-offline'}"></div>
+                        <span>${name}</span>
+                    </div>
+                    <span class="text-xs text-gray-400">${status.tools_count || 0} tools</span>
+                `;
+                detailContainer.appendChild(detail);
+            });
+        }
+
+        function updateEcosystemHealth(health) {
+            const container = document.getElementById('ecosystem-health');
+            const connected = health.connected_servers || 0;
+            const total = health.total_servers || 0;
+            
+            if (connected === total && total > 0) {
+                container.className = 'ml-auto text-xs px-2 py-1 rounded bg-green-600';
+                container.textContent = 'Healthy';
+            } else if (connected > 0) {
+                container.className = 'ml-auto text-xs px-2 py-1 rounded bg-yellow-600';
+                container.textContent = 'Partial';
+            } else {
+                container.className = 'ml-auto text-xs px-2 py-1 rounded bg-red-600';
+                container.textContent = 'Offline';
+            }
+        }
+
+        function updateMCPSessions(sessions) {
+            document.getElementById('mcp-sessions').textContent = sessions;
+        }
+
+        async function loadStats() {
+            try {
+                const response = await fetch(`${MCP_HUB_URL}/mcp/stats`);
+                const stats = await response.json();
+                
+                document.getElementById('total-convs').textContent = stats.total_conversations || 0;
+                document.getElementById('week-convs').textContent = stats.recent_activity || 0;
+                
+                const aiUsage = stats.ai_usage || {};
+                document.getElementById('ollama-count').textContent = aiUsage.ollama || 0;
+                document.getElementById('perplexity-count').textContent = aiUsage.perplexity || 0;
+                document.getElementById('memory-count').textContent = aiUsage.memory || 0;
+                document.getElementById('tools-count').textContent = aiUsage.tools || 0;
+                
+            } catch (error) {
+                console.error('Error loading stats:', error);
+            }
+        }
+
+        async function loadRecentConversations() {
+            try {
+                const response = await fetch(`${MCP_HUB_URL}/mcp/conversations?limit=5`);
+                const conversations = await response.json();
+                
+                const container = document.getElementById('recent-conversations');
+                container.innerHTML = '';
+                
+                conversations.forEach(conv => {
+                    const div = document.createElement('div');
+                    div.className = 'text-xs bg-white/5 rounded p-3 cursor-pointer hover:bg-white/10 transition-colors';
+                    div.onclick = () => showConversationDetails(conv);
+                    
+                    const agentIcon = getAgentIcon(conv.agent_used);
+                    
+                    div.innerHTML = `
+                        <div class="flex items-center gap-2 mb-1">
+                            <span>${agentIcon}</span>
+                            <span class="font-medium">${conv.agent_used}</span>
+                        </div>
+                        <div class="text-gray-300 truncate">${conv.message.substring(0, 60)}...</div>
+                        <div class="text-gray-500 text-xs mt-1">${new Date(conv.timestamp).toLocaleDateString()}</div>
+                    `;
+                    
+                    container.appendChild(div);
+                });
+                
+            } catch (error) {
+                console.error('Error loading conversations:', error);
+            }
+        }
+
+        function getAgentIcon(agentUsed) {
+            if (agentUsed.includes('ollama')) return '🦙';
+            if (agentUsed.includes('perplexity')) return '🔍';
+            if (agentUsed.includes('memory')) return '🧠';
+            if (agentUsed.includes('tools')) return '🛠️';
+            return '🤖';
+        }
+
+        // Utility Functions
+        function generateSessionId() {
+            return 'session-' + Date.now() + '-' + Math.random().toString(36).substr(2, 9);
+        }
+
+        function copyResponse() {
+            navigator.clipboard.writeText(currentResponse);
+            const btn = document.getElementById('copy-response-btn');
+            const original = btn.textContent;
+            btn.textContent = '✅ Copié!';
+            setTimeout(() => btn.textContent = original, 2000);
+        }
+
+        function copyPrompt() {
+            navigator.clipboard.writeText(currentPrompt);
+            const btn = document.getElementById('copy-prompt-btn');
+            const original = btn.textContent;
+            btn.textContent = '✅ Copié!';
+            setTimeout(() => btn.textContent = original, 2000);
+        }
+
+        function regenerateResponse() {
+            submitMCPQuery();
+        }
+
+        function showConversationDetails(conv) {
+            currentResponse = conv.response;
+            if (conv.optimized_prompt) {
+                currentPrompt = conv.optimized_prompt;
+                showPrompt(currentPrompt);
+            }
+            
+            showResponse({
+                response: conv.response,
+                agent_used: conv.agent_used,
+                timestamp: conv.timestamp
+            });
+            
+            // Fill form with conversation details
+            document.getElementById('query-input').value = conv.message;
+            if (conv.project) document.getElementById('project-input').value = conv.project;
+        }
+
+        function toggleMCPStatus() {
+            const modal = document.getElementById('mcp-status-modal');
+            modal.classList.toggle('hidden');
+            
+            if (!modal.classList.contains('hidden')) {
+                loadDetailedMCPStatus();
+            }
+        }
+
+        function toggleHistory() {
+            const modal = document.getElementById('history-modal');
+            modal.classList.toggle('hidden');
+            
+            if (!modal.classList.contains('hidden')) {
+                loadFullHistory();
+            }
+        }
+
+        async function loadDetailedMCPStatus() {
+            try {
+                const response = await fetch(`${MCP_HUB_URL}/mcp/status`);
+                const data = await response.json();
+                
+                const container = document.getElementById('mcp-status-content');
+                container.innerHTML = `
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                        <div>
+                            <h3 class="text-lg font-semibold mb-3">MCP Servers</h3>
+                            <div class="space-y-3">
+                                ${Object.entries(data.mcp_servers || {}).map(([name, status]) => `
+                                    <div class="bg-white/5 p-3 rounded">
+                                        <div class="flex justify-between items-center mb-2">
+                                            <span class="font-medium">${name}</span>
+                                            <span class="text-xs px-2 py-1 rounded ${status.connected ? 'bg-green-600' : 'bg-red-600'}">
+                                                ${status.connected ? 'Connected' : 'Offline'}
+                                            </span>
+                                        </div>
+                                        <div class="text-sm text-gray-300">
+                                            Tools: ${status.tools_count || 0} | Resources: ${status.resources_count || 0}
+                                        </div>
+                                        ${status.session_id ? `<div class="text-xs text-gray-400">Session: ${status.session_id}</div>` : ''}
+                                    </div>
+                                `).join('')}
+                            </div>
+                        </div>
+                        <div>
+                            <h3 class="text-lg font-semibold mb-3">Ecosystem Health</h3>
+                            <div class="bg-white/5 p-3 rounded">
+                                <div class="space-y-2 text-sm">
+                                    <div class="flex justify-between">
+                                        <span>Connected Servers:</span>
+                                        <span>${data.ecosystem_health?.connected_servers || 0} / ${data.ecosystem_health?.total_servers || 0}</span>
+                                    </div>
+                                    <div class="flex justify-between">
+                                        <span>Total Tools:</span>
+                                        <span>${data.ecosystem_health?.total_tools || 0}</span>
+                                    </div>
+                                    <div class="flex justify-between">
+                                        <span>Total Resources:</span>
+                                        <span>${data.ecosystem_health?.total_resources || 0}</span>
+                                    </div>
+                                    <div class="flex justify-between">
+                                        <span>Active WebSockets:</span>
+                                        <span>${data.active_websockets || 0}</span>
+                                    </div>
+                                    <div class="flex justify-between">
+                                        <span>Active Sessions:</span>
+                                        <span>${data.active_sessions || 0}</span>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                `;
+            } catch (error) {
+                console.error('Error loading detailed MCP status:', error);
+            }
+        }
+
+        async function loadFullHistory() {
+            try {
+                const response = await fetch(`${MCP_HUB_URL}/mcp/conversations?limit=50`);
+                const conversations = await response.json();
+                
+                const container = document.getElementById('history-content');
+                container.innerHTML = '';
+                
+                conversations.forEach(conv => {
+                    const div = document.createElement('div');
+                    div.className = 'bg-white/5 rounded-lg p-4 mb-4 hover:bg-white/10 transition-colors cursor-pointer';
+                    div.onclick = () => {
+                        showConversationDetails(conv);
+                        toggleHistory();
+                    };
+                    
+                    const agentIcon = getAgentIcon(conv.agent_used);
+                    
+                    div.innerHTML = `
+                        <div class="flex justify-between items-start mb-2">
+                            <div class="flex items-center gap-2">
+                                <span>${agentIcon}</span>
+                                <span class="font-medium">${conv.agent_used}</span>
+                                ${conv.project ? `<span class="text-xs bg-blue-600 px-2 py-1 rounded">${conv.project}</span>` : ''}
+                            </div>
+                            <span class="text-xs text-gray-400">${new Date(conv.timestamp).toLocaleString()}</span>
+                        </div>
+                        <div class="text-sm font-medium mb-2">${conv.message}</div>
+                        <div class="text-xs text-gray-300 truncate">${conv.response.substring(0, 150)}...</div>
+                    `;
+                    
+                    container.appendChild(div);
+                });
+                
+            } catch (error) {
+                console.error('Error loading history:', error);
+            }
+        }
+
+        // Keyboard shortcuts
+        document.addEventListener('keydown', function(e) {
+            if (e.ctrlKey && e.key === 'Enter') {
+                submitMCPQuery();
+            }
+        });
+    </script>
+</body>
+</html>

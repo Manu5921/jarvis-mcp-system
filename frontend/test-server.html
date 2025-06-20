@@ -1,0 +1,249 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Jarvis MCP - Test Interface</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    animation: {
+                        'gradient-x': 'gradient-x 15s ease infinite',
+                        'expand-width': 'expand-width 2s ease-out 1s forwards',
+                        'pulse-slow': 'pulse-slow 2s infinite'
+                    },
+                    keyframes: {
+                        'gradient-x': {
+                            '0%, 100%': {
+                                'background-size': '200% 200%',
+                                'background-position': 'left center'
+                            },
+                            '50%': {
+                                'background-size': '200% 200%',
+                                'background-position': 'right center'
+                            },
+                        },
+                        'expand-width': {
+                            '0%': { width: '0%' },
+                            '100%': { width: '100%' },
+                        },
+                        'pulse-slow': {
+                            '0%, 100%': { opacity: '1' },
+                            '50%': { opacity: '0.5' },
+                        }
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        .animate-float {
+            animation: float 6s ease-in-out infinite;
+        }
+        
+        @keyframes float {
+            0%, 100% { transform: translateY(0px); }
+            50% { transform: translateY(-10px); }
+        }
+        
+        .particle {
+            position: absolute;
+            width: 4px;
+            height: 4px;
+            background: rgba(59, 130, 246, 0.3);
+            border-radius: 50%;
+            animation: float 3s ease-in-out infinite;
+        }
+    </style>
+</head>
+<body class="bg-gradient-to-br from-slate-900 via-blue-900 to-slate-900 min-h-screen overflow-hidden">
+    <!-- Animated Background -->
+    <div class="absolute inset-0 -z-10 overflow-hidden">
+        <!-- Gradient mesh background -->
+        <div class="absolute inset-0 bg-gradient-radial from-blue-500/20 via-purple-500/10 to-transparent"></div>
+        <div class="absolute inset-0 bg-gradient-radial from-purple-500/15 via-transparent to-blue-500/10"></div>
+        
+        <!-- Floating particles -->
+        <div id="particles" class="absolute inset-0"></div>
+    </div>
+
+    <main class="relative z-10 container mx-auto px-4 py-16">
+        <!-- Header with status -->
+        <div class="flex justify-between items-center mb-16">
+            <div class="opacity-0 -translate-x-8 animate-[slide-in_1s_ease-out_0.5s_forwards]">
+                <div class="flex items-center gap-2 px-4 py-2 rounded-full bg-white/10 backdrop-blur-sm border border-white/20">
+                    <div class="w-2 h-2 rounded-full bg-green-400 animate-pulse"></div>
+                    <span class="text-sm text-white/90 font-medium">Système opérationnel</span>
+                </div>
+            </div>
+            <div class="opacity-0 translate-x-8 animate-[slide-in_1s_ease-out_0.7s_forwards]">
+                <div class="text-right text-sm text-white/60">Version 1.0.0-alpha</div>
+            </div>
+        </div>
+
+        <!-- Hero Section -->
+        <div class="text-center mb-20">
+            <div class="opacity-0 translate-y-8 animate-[slide-up_1s_ease-out_1s_forwards]">
+                <h1 class="text-7xl lg:text-8xl font-bold mb-6 relative">
+                    <span class="bg-gradient-to-r from-blue-400 via-purple-400 to-teal-400 bg-clip-text text-transparent animate-gradient-x">
+                        Jarvis MCP
+                    </span>
+                    <!-- Animated underline -->
+                    <div class="absolute -bottom-2 left-1/2 transform -translate-x-1/2 w-0 h-1 bg-gradient-to-r from-blue-400 to-purple-400 animate-expand-width"></div>
+                </h1>
+            </div>
+            
+            <div class="opacity-0 translate-y-8 animate-[slide-up_1s_ease-out_1.3s_forwards]">
+                <p class="text-2xl lg:text-3xl text-white/90 mb-6 font-light">
+                    Multi-Channel Processor pour
+                </p>
+                <p class="text-2xl lg:text-3xl bg-gradient-to-r from-blue-300 to-purple-300 bg-clip-text text-transparent font-semibold mb-8">
+                    orchestration IA intelligente
+                </p>
+            </div>
+            
+            <div class="opacity-0 translate-y-8 animate-[slide-up_1s_ease-out_1.6s_forwards]">
+                <p class="text-lg text-gray-300 mb-12 max-w-3xl mx-auto leading-relaxed">
+                    Coordonnez plusieurs agents IA (Ollama, Claude, OpenAI) pour des réponses 
+                    optimisées selon le contexte et vos préférences. Une interface moderne 
+                    pour l'avenir de l'intelligence artificielle.
+                </p>
+            </div>
+            
+            <!-- Action Buttons -->
+            <div class="opacity-0 translate-y-8 animate-[slide-up_1s_ease-out_1.9s_forwards]">
+                <div class="flex flex-col sm:flex-row gap-4 justify-center mb-16">
+                    <a href="#dashboard" class="group relative overflow-hidden inline-flex items-center justify-center px-8 py-4 bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white rounded-md font-semibold transition-all duration-300 hover:scale-105 hover:shadow-2xl hover:shadow-blue-500/25">
+                        <span class="relative z-10 flex items-center gap-2">
+                            🚀 Accéder au Dashboard
+                        </span>
+                        <div class="absolute inset-0 bg-gradient-to-r from-white/0 via-white/10 to-white/0 translate-x-[-100%] group-hover:translate-x-[100%] transition-transform duration-1000"></div>
+                    </a>
+                    <a href="#chat" class="group relative overflow-hidden inline-flex items-center justify-center px-8 py-4 border-2 border-white/30 text-white hover:bg-white/10 hover:border-white/50 rounded-md font-semibold transition-all duration-300 hover:scale-105 backdrop-blur-sm">
+                        <span class="relative z-10 flex items-center gap-2">
+                            💬 Commencer à chatter
+                        </span>
+                    </a>
+                </div>
+            </div>
+        </div>
+
+        <!-- Features Grid -->
+        <div class="grid md:grid-cols-3 gap-8 mt-20">
+            <!-- Feature Card 1 -->
+            <div class="feature-card opacity-0 translate-y-8 animate-[slide-up_1s_ease-out_2.2s_forwards] group relative overflow-hidden rounded-2xl bg-white/10 backdrop-blur-sm border border-white/20 p-8 transition-all duration-700 hover:scale-105 hover:bg-white/15 hover:border-white/30">
+                <div class="absolute inset-0 bg-gradient-to-br from-blue-500/20 via-purple-500/20 to-teal-500/20 opacity-0 group-hover:opacity-100 transition-opacity duration-500"></div>
+                <div class="relative z-10">
+                    <div class="text-4xl mb-4 group-hover:scale-110 transition-transform duration-300 animate-float">🧠</div>
+                    <h3 class="text-xl font-bold text-white mb-3 group-hover:text-blue-200 transition-colors">Orchestration Intelligente</h3>
+                    <p class="text-gray-300 group-hover:text-gray-200 transition-colors">Routage automatique vers l'agent IA le plus adapté selon le contexte et la complexité de votre demande</p>
+                </div>
+                <div class="absolute inset-0 bg-gradient-to-br from-blue-500/0 via-purple-500/0 to-teal-500/0 group-hover:from-blue-500/5 group-hover:via-purple-500/5 group-hover:to-teal-500/5 transition-all duration-500"></div>
+            </div>
+            
+            <!-- Feature Card 2 -->
+            <div class="feature-card opacity-0 translate-y-8 animate-[slide-up_1s_ease-out_2.4s_forwards] group relative overflow-hidden rounded-2xl bg-white/10 backdrop-blur-sm border border-white/20 p-8 transition-all duration-700 hover:scale-105 hover:bg-white/15 hover:border-white/30">
+                <div class="absolute inset-0 bg-gradient-to-br from-blue-500/20 via-purple-500/20 to-teal-500/20 opacity-0 group-hover:opacity-100 transition-opacity duration-500"></div>
+                <div class="relative z-10">
+                    <div class="text-4xl mb-4 group-hover:scale-110 transition-transform duration-300 animate-float" style="animation-delay: 1s;">🔌</div>
+                    <h3 class="text-xl font-bold text-white mb-3 group-hover:text-blue-200 transition-colors">Multi-Agents</h3>
+                    <p class="text-gray-300 group-hover:text-gray-200 transition-colors">Ollama local pour la rapidité, Claude pour le code et l'analyse, OpenAI pour la créativité</p>
+                </div>
+                <div class="absolute inset-0 bg-gradient-to-br from-blue-500/0 via-purple-500/0 to-teal-500/0 group-hover:from-blue-500/5 group-hover:via-purple-500/5 group-hover:to-teal-500/5 transition-all duration-500"></div>
+            </div>
+            
+            <!-- Feature Card 3 -->
+            <div class="feature-card opacity-0 translate-y-8 animate-[slide-up_1s_ease-out_2.6s_forwards] group relative overflow-hidden rounded-2xl bg-white/10 backdrop-blur-sm border border-white/20 p-8 transition-all duration-700 hover:scale-105 hover:bg-white/15 hover:border-white/30">
+                <div class="absolute inset-0 bg-gradient-to-br from-blue-500/20 via-purple-500/20 to-teal-500/20 opacity-0 group-hover:opacity-100 transition-opacity duration-500"></div>
+                <div class="relative z-10">
+                    <div class="text-4xl mb-4 group-hover:scale-110 transition-transform duration-300 animate-float" style="animation-delay: 2s;">💾</div>
+                    <h3 class="text-xl font-bold text-white mb-3 group-hover:text-blue-200 transition-colors">Mémoire Vectorielle</h3>
+                    <p class="text-gray-300 group-hover:text-gray-200 transition-colors">PostgreSQL + pgvector pour un contexte sémantique intelligent et des conversations persistantes</p>
+                </div>
+                <div class="absolute inset-0 bg-gradient-to-br from-blue-500/0 via-purple-500/0 to-teal-500/0 group-hover:from-blue-500/5 group-hover:via-purple-500/5 group-hover:to-teal-500/5 transition-all duration-500"></div>
+            </div>
+        </div>
+
+        <!-- Performance Metrics -->
+        <div class="opacity-0 translate-y-8 animate-[slide-up_1s_ease-out_2.8s_forwards]">
+            <div class="mt-20 text-center">
+                <div class="grid grid-cols-2 md:grid-cols-4 gap-8">
+                    <div class="text-center">
+                        <div class="text-3xl lg:text-4xl font-bold text-white mb-2 animate-pulse-slow">
+                            3<span class="text-blue-400"></span>
+                        </div>
+                        <div class="text-sm text-gray-400 uppercase tracking-wider">Agents Actifs</div>
+                    </div>
+                    <div class="text-center">
+                        <div class="text-3xl lg:text-4xl font-bold text-white mb-2 animate-pulse-slow" style="animation-delay: 0.5s;">
+                            &lt;100<span class="text-blue-400">ms</span>
+                        </div>
+                        <div class="text-sm text-gray-400 uppercase tracking-wider">Temps de Réponse</div>
+                    </div>
+                    <div class="text-center">
+                        <div class="text-3xl lg:text-4xl font-bold text-white mb-2 animate-pulse-slow" style="animation-delay: 1s;">
+                            99.9<span class="text-blue-400">%</span>
+                        </div>
+                        <div class="text-sm text-gray-400 uppercase tracking-wider">Taux de Succès</div>
+                    </div>
+                    <div class="text-center">
+                        <div class="text-3xl lg:text-4xl font-bold text-white mb-2 animate-pulse-slow" style="animation-delay: 1.5s;">
+                            ∞<span class="text-blue-400"></span>
+                        </div>
+                        <div class="text-sm text-gray-400 uppercase tracking-wider">Conversations</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <!-- Bottom gradient fade -->
+    <div class="absolute bottom-0 left-0 right-0 h-32 bg-gradient-to-t from-slate-900 to-transparent"></div>
+
+    <script>
+        // Générer des particules flottantes
+        function createParticles() {
+            const particlesContainer = document.getElementById('particles');
+            const particleCount = 50;
+            
+            for (let i = 0; i < particleCount; i++) {
+                const particle = document.createElement('div');
+                particle.className = 'particle';
+                particle.style.left = Math.random() * 100 + '%';
+                particle.style.top = Math.random() * 100 + '%';
+                particle.style.animationDelay = Math.random() * 3 + 's';
+                particle.style.animationDuration = (2 + Math.random() * 3) + 's';
+                particlesContainer.appendChild(particle);
+            }
+        }
+        
+        // Animation CSS personnalisée
+        const style = document.createElement('style');
+        style.textContent = `
+            @keyframes slide-in {
+                from { opacity: 0; transform: translateX(-100%); }
+                to { opacity: 1; transform: translateX(0); }
+            }
+            
+            @keyframes slide-up {
+                from { opacity: 0; transform: translateY(20px); }
+                to { opacity: 1; transform: translateY(0); }
+            }
+        `;
+        document.head.appendChild(style);
+        
+        // Démarrer les animations
+        document.addEventListener('DOMContentLoaded', function() {
+            createParticles();
+            
+            // Simuler le changement de statut
+            setTimeout(() => {
+                const statusDot = document.querySelector('.animate-pulse');
+                statusDot.className = statusDot.className.replace('bg-green-400', 'bg-blue-400');
+            }, 3000);
+        });
+    </script>
+</body>
+</html>

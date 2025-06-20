@@ -1,0 +1,36 @@
+2025-06-20 09:31:14,398 [INFO] main:77: 🚀 Démarrage Jarvis MCP Server
+2025-06-20 09:31:14,633 [ERROR] db.database:62: Erreur initialisation base de données: the greenlet library is required to use this function. No module named 'greenlet'
+2025-06-20 09:31:14,633 [ERROR] main:102: ❌ Erreur démarrage: the greenlet library is required to use this function. No module named 'greenlet'
+2025-06-20 09:40:20,856 [INFO] main:77: 🚀 Démarrage Jarvis MCP Server
+2025-06-20 09:40:20,884 [ERROR] db.database:62: Erreur initialisation base de données: the greenlet library is required to use this function. No module named 'greenlet'
+2025-06-20 09:40:20,884 [ERROR] main:102: ❌ Erreur démarrage: the greenlet library is required to use this function. No module named 'greenlet'
+2025-06-20 09:42:50,083 [INFO] main:77: 🚀 Démarrage Jarvis MCP Server
+2025-06-20 09:42:50,116 [ERROR] db.database:62: Erreur initialisation base de données: the greenlet library is required to use this function. No module named 'greenlet'
+2025-06-20 09:42:50,116 [ERROR] main:102: ❌ Erreur démarrage: the greenlet library is required to use this function. No module named 'greenlet'
+2025-06-20 09:43:04,130 [INFO] main:77: 🚀 Démarrage Jarvis MCP Server
+2025-06-20 09:43:04,150 [ERROR] db.database:62: Erreur initialisation base de données: the greenlet library is required to use this function. No module named 'greenlet'
+2025-06-20 09:43:04,150 [ERROR] main:102: ❌ Erreur démarrage: the greenlet library is required to use this function. No module named 'greenlet'
+2025-06-20 09:43:22,268 [INFO] main:77: 🚀 Démarrage Jarvis MCP Server
+2025-06-20 09:43:22,288 [ERROR] db.database:62: Erreur initialisation base de données: the greenlet library is required to use this function. No module named 'greenlet'
+2025-06-20 09:43:22,288 [ERROR] main:102: ❌ Erreur démarrage: the greenlet library is required to use this function. No module named 'greenlet'
+2025-06-20 09:43:51,010 [INFO] main:77: 🚀 Démarrage Jarvis MCP Server
+2025-06-20 09:43:51,035 [ERROR] db.database:62: Erreur initialisation base de données: the greenlet library is required to use this function. No module named 'greenlet'
+2025-06-20 09:43:51,035 [ERROR] main:105: ❌ Erreur démarrage: the greenlet library is required to use this function. No module named 'greenlet'
+2025-06-20 09:46:16,543 [INFO] main:77: 🚀 Démarrage Jarvis MCP Server
+2025-06-20 09:46:16,571 [ERROR] db.database:62: Erreur initialisation base de données: the greenlet library is required to use this function. No module named 'greenlet'
+2025-06-20 09:46:16,571 [ERROR] main:105: ❌ Erreur démarrage: the greenlet library is required to use this function. No module named 'greenlet'
+2025-06-20 09:50:18,586 [INFO] main:77: 🚀 Démarrage Jarvis MCP Server
+2025-06-20 09:50:18,613 [ERROR] db.database:62: Erreur initialisation base de données: Multiple exceptions: [Errno 61] Connect call failed ('::1', 5432, 0, 0), [Errno 61] Connect call failed ('127.0.0.1', 5432)
+2025-06-20 09:50:18,613 [ERROR] main:105: ❌ Erreur démarrage: Multiple exceptions: [Errno 61] Connect call failed ('::1', 5432, 0, 0), [Errno 61] Connect call failed ('127.0.0.1', 5432)
+2025-06-20 10:25:34,199 [INFO] main:77: 🚀 Démarrage Jarvis MCP Server
+2025-06-20 10:25:34,216 [DEBUG] aiosqlite:104: executing <function connect.<locals>.connector at 0x310b8fa60>
+2025-06-20 10:25:34,216 [DEBUG] aiosqlite:109: returning exception 'server_settings' is an invalid keyword argument for this function
+2025-06-20 10:25:34,216 [ERROR] db.database:62: Erreur initialisation base de données: 'server_settings' is an invalid keyword argument for this function
+2025-06-20 10:25:34,216 [ERROR] main:105: ❌ Erreur démarrage: 'server_settings' is an invalid keyword argument for this function
+2025-06-20 10:27:42,094 [INFO] main:77: 🚀 Démarrage Jarvis MCP Server
+2025-06-20 10:27:42,094 [INFO] main:102: ✅ Jarvis MCP Server démarré avec succès
+2025-06-20 10:27:48,154 [INFO] main:111: 🛑 Arrêt Jarvis MCP Server
+2025-06-20 10:27:48,154 [INFO] utils.websocket_manager:103: Toutes les connexions WebSocket fermées
+2025-06-20 10:27:48,154 [INFO] main:121: ✅ Jarvis MCP Server arrêté proprement
+2025-06-20 10:27:54,527 [INFO] main:77: 🚀 Démarrage Jarvis MCP Server
+2025-06-20 10:27:54,528 [INFO] main:102: ✅ Jarvis MCP Server démarré avec succès

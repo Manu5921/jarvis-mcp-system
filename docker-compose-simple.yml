@@ -1,0 +1,28 @@
+services:
+  # Frontend simple en premier
+  mcp-frontend:
+    build:
+      context: ./frontend-simple
+      dockerfile: Dockerfile
+    ports:
+      - "4002:4002"
+    restart: unless-stopped
+
+  # MCP Hub Central
+  mcp-hub:
+    build:
+      context: ./mcp-hub
+      dockerfile: Dockerfile
+    ports:
+      - "4000:4000"
+    environment:
+      - OLLAMA_HOST=host.docker.internal:11434
+    volumes:
+      - ./data:/app/data
+    restart: unless-stopped
+    depends_on:
+      - mcp-frontend
+
+networks:
+  default:
+    driver: bridge

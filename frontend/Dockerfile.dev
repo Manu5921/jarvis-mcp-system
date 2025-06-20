@@ -1,0 +1,24 @@
+# Dockerfile pour développement avec hot reload
+FROM node:18-alpine
+
+# Installation de pnpm
+RUN npm install -g pnpm@8
+
+WORKDIR /app
+
+# Configuration pnpm
+ENV PNPM_HOME="/pnpm"
+ENV PATH="$PNPM_HOME:$PATH"
+
+# Copie et installation des dépendances
+COPY package.json pnpm-lock.yaml* ./
+RUN --mount=type=cache,id=pnpm,target=/pnpm/store pnpm install
+
+# Copie du code source
+COPY . .
+
+# Exposition des ports
+EXPOSE 3000 3001
+
+# Commande de développement
+CMD ["pnpm", "dev"]

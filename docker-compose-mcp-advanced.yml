@@ -1,0 +1,123 @@
+version: '3.8'
+
+services:
+  # Frontend avec WebSocket support
+  mcp-frontend-advanced:
+    build:
+      context: ./frontend-advanced
+      dockerfile: Dockerfile
+    ports:
+      - "4002:4002"
+    environment:
+      - MCP_HUB_URL=http://mcp-hub-advanced:4000
+      - MCP_WS_URL=ws://mcp-hub-advanced:4000
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:4002/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # MCP Hub Central Advanced
+  mcp-hub-advanced:
+    build:
+      context: ./mcp-hub
+      dockerfile: Dockerfile.advanced
+    ports:
+      - "4000:4000"
+    environment:
+      - OLLAMA_HOST=host.docker.internal:11434
+      - DATABASE_PATH=/app/data/mcp_hub.db
+    volumes:
+      - ./data:/app/data
+    restart: unless-stopped
+    depends_on:
+      - mcp-ollama
+      - mcp-memory
+      - mcp-tools
+      - mcp-perplexity
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:4000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # Advanced Ollama MCP Server with File Access
+  mcp-ollama:
+    build:
+      context: ./mcp-servers/ollama
+      dockerfile: Dockerfile.advanced
+    ports:
+      - "4003:4003"
+    environment:
+      - OLLAMA_HOST=host.docker.internal:11434
+    volumes:
+      # 🔧 ACCÈS FICHIERS SYSTÈME POUR FORMATION JARVIS
+      - /Users/manu/Documents/DEV/digital-agency-ai:/data/digital-agency-ai:ro
+      - ./data:/app/data
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:4003/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # Advanced Perplexity MCP Server
+  mcp-perplexity:
+    build:
+      context: ./mcp-servers/perplexity
+      dockerfile: Dockerfile.advanced
+    ports:
+      - "4004:4004"
+    environment:
+      - PERPLEXITY_API_KEY=${PERPLEXITY_API_KEY:-}
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:4004/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # Advanced Memory MCP Server
+  mcp-memory:
+    build:
+      context: ./mcp-servers/memory
+      dockerfile: Dockerfile.advanced
+    ports:
+      - "4005:4005"
+    volumes:
+      - ./data:/app/data
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:4005/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # Advanced Tools MCP Server
+  mcp-tools:
+    build:
+      context: ./mcp-servers/tools
+      dockerfile: Dockerfile.advanced
+    ports:
+      - "4006:4006"
+    volumes:
+      - ./data:/app/data
+      - /tmp:/tmp
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:4006/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+networks:
+  default:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.20.0.0/16
+
+volumes:
+  mcp_data:
+    driver: local

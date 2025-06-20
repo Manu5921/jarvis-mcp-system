@@ -1,0 +1,48 @@
+version: '3.8'
+
+services:
+  # Frontend Next.js
+  frontend:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: runner
+    ports:
+      - "3000:3000"
+    environment:
+      - NODE_ENV=production
+      - NEXT_PUBLIC_API_URL=http://localhost:8000
+      - NEXT_PUBLIC_WS_URL=ws://localhost:8000
+    volumes:
+      - ./src:/app/src:cached
+      - ./public:/app/public:cached
+    restart: unless-stopped
+    networks:
+      - jarvis-network
+
+  # Frontend développement avec hot reload
+  frontend-dev:
+    build:
+      context: .
+      dockerfile: Dockerfile.dev
+    ports:
+      - "3000:3000"
+      - "3001:3001" # Pour le hot reload
+    environment:
+      - NODE_ENV=development
+      - NEXT_PUBLIC_API_URL=http://localhost:8000
+      - NEXT_PUBLIC_WS_URL=ws://localhost:8000
+      - WATCHPACK_POLLING=true
+    volumes:
+      - .:/app:cached
+      - /app/node_modules
+      - /app/.next
+    restart: unless-stopped
+    networks:
+      - jarvis-network
+    profiles:
+      - dev
+
+networks:
+  jarvis-network:
+    driver: bridge

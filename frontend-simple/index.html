@@ -1,0 +1,396 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI Memory Hub - Personal Assistant</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        .copy-button:hover { transform: scale(1.05); }
+        .loading { opacity: 0.6; pointer-events: none; }
+        .fade-in { animation: fadeIn 0.3s ease-in; }
+        @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+    </style>
+</head>
+<body class="bg-gradient-to-br from-slate-900 via-blue-900 to-slate-900 min-h-screen text-white">
+    
+    <!-- Header -->
+    <header class="border-b border-white/10 bg-black/20 backdrop-blur-sm">
+        <div class="container mx-auto px-4 py-4 flex justify-between items-center">
+            <h1 class="text-2xl font-bold bg-gradient-to-r from-blue-400 to-purple-400 bg-clip-text text-transparent">
+                🧠 AI Memory Hub
+            </h1>
+            <div class="flex gap-4 text-sm">
+                <span id="stats-display" class="text-gray-300"></span>
+                <button onclick="toggleHistory()" class="px-3 py-1 bg-white/10 rounded-md hover:bg-white/20 transition-colors">
+                    📚 Historique
+                </button>
+            </div>
+        </div>
+    </header>
+
+    <div class="container mx-auto px-4 py-8 grid grid-cols-1 lg:grid-cols-3 gap-8">
+        
+        <!-- Main Chat Interface -->
+        <div class="lg:col-span-2">
+            <div class="bg-black/20 backdrop-blur-sm rounded-xl border border-white/10 p-6">
+                <h2 class="text-xl font-semibold mb-6 flex items-center gap-2">
+                    💬 Chat Interface
+                    <select id="ai-selector" class="ml-auto text-sm bg-white/10 border border-white/20 rounded px-3 py-1 text-white">
+                        <option value="ollama">🦙 Ollama (Local)</option>
+                        <option value="perplexity">🔍 Perplexity Pro</option>
+                        <option value="claude">🤖 Claude Code (Prompt)</option>
+                        <option value="chatgpt">💭 ChatGPT (Prompt)</option>
+                    </select>
+                </h2>
+                
+                <!-- Query Input -->
+                <div class="space-y-4">
+                    <div>
+                        <label class="block text-sm font-medium text-gray-300 mb-2">Votre question :</label>
+                        <textarea id="query-input" 
+                                  placeholder="Ex: Comment optimiser une requête SQL avec des joins complexes ?"
+                                  class="w-full h-24 bg-white/5 border border-white/20 rounded-lg px-4 py-3 text-white placeholder-gray-400 focus:border-blue-400 focus:outline-none resize-none"></textarea>
+                    </div>
+                    
+                    <div class="grid grid-cols-2 gap-4">
+                        <div>
+                            <label class="block text-sm font-medium text-gray-300 mb-2">Projet (optionnel) :</label>
+                            <input id="project-input" 
+                                   placeholder="Ex: Jarvis-MCP"
+                                   class="w-full bg-white/5 border border-white/20 rounded-lg px-4 py-2 text-white placeholder-gray-400 focus:border-blue-400 focus:outline-none">
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-300 mb-2">Contexte (optionnel) :</label>
+                            <input id="context-input" 
+                                   placeholder="Ex: Backend FastAPI + SQLite"
+                                   class="w-full bg-white/5 border border-white/20 rounded-lg px-4 py-2 text-white placeholder-gray-400 focus:border-blue-400 focus:outline-none">
+                        </div>
+                    </div>
+                    
+                    <button id="submit-btn" 
+                            onclick="submitQuery()"
+                            class="w-full bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white font-semibold py-3 px-6 rounded-lg transition-all duration-200 transform hover:scale-105">
+                        🚀 Envoyer
+                    </button>
+                </div>
+            </div>
+            
+            <!-- Response Area -->
+            <div id="response-area" class="mt-8 bg-black/20 backdrop-blur-sm rounded-xl border border-white/10 p-6 hidden">
+                <div class="flex justify-between items-center mb-4">
+                    <h3 class="text-lg font-semibold">Réponse :</h3>
+                    <button id="copy-response-btn" 
+                            onclick="copyResponse()"
+                            class="copy-button px-3 py-1 bg-green-600 hover:bg-green-700 rounded text-sm transition-all">
+                        📋 Copier
+                    </button>
+                </div>
+                <div id="response-content" class="bg-white/5 rounded-lg p-4 text-gray-100 whitespace-pre-wrap font-mono text-sm max-h-96 overflow-y-auto"></div>
+            </div>
+            
+            <!-- Optimized Prompt Area -->
+            <div id="prompt-area" class="mt-8 bg-black/20 backdrop-blur-sm rounded-xl border border-white/10 p-6 hidden">
+                <div class="flex justify-between items-center mb-4">
+                    <h3 class="text-lg font-semibold">Prompt Optimisé :</h3>
+                    <button id="copy-prompt-btn" 
+                            onclick="copyPrompt()"
+                            class="copy-button px-3 py-1 bg-blue-600 hover:bg-blue-700 rounded text-sm transition-all">
+                        📋 Copier le Prompt
+                    </button>
+                </div>
+                <div id="prompt-content" class="bg-white/5 rounded-lg p-4 text-blue-100 whitespace-pre-wrap text-sm max-h-64 overflow-y-auto"></div>
+            </div>
+        </div>
+        
+        <!-- Sidebar -->
+        <div class="space-y-6">
+            
+            <!-- Quick Stats -->
+            <div class="bg-black/20 backdrop-blur-sm rounded-xl border border-white/10 p-6">
+                <h3 class="text-lg font-semibold mb-4">📊 Statistiques</h3>
+                <div id="stats-content" class="space-y-3 text-sm">
+                    <div class="flex justify-between">
+                        <span class="text-gray-300">Total conversations:</span>
+                        <span id="total-convs">-</span>
+                    </div>
+                    <div class="flex justify-between">
+                        <span class="text-gray-300">Cette semaine:</span>
+                        <span id="week-convs">-</span>
+                    </div>
+                    <div class="text-xs text-gray-400 mt-4">
+                        <div>🦙 Ollama: <span id="ollama-count">-</span></div>
+                        <div>🔍 Perplexity: <span id="perplexity-count">-</span></div>
+                        <div>🤖 Prompts: <span id="prompt-count">-</span></div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Recent Conversations -->
+            <div class="bg-black/20 backdrop-blur-sm rounded-xl border border-white/10 p-6">
+                <h3 class="text-lg font-semibold mb-4">🕒 Récent</h3>
+                <div id="recent-conversations" class="space-y-3">
+                    <!-- Populated by JS -->
+                </div>
+            </div>
+            
+        </div>
+    </div>
+    
+    <!-- History Modal -->
+    <div id="history-modal" class="fixed inset-0 z-50 hidden bg-black/50 backdrop-blur-sm">
+        <div class="min-h-screen flex items-center justify-center p-4">
+            <div class="bg-slate-800 rounded-xl border border-white/20 w-full max-w-4xl max-h-[80vh] overflow-hidden">
+                <div class="p-6 border-b border-white/10 flex justify-between items-center">
+                    <h2 class="text-xl font-semibold">📚 Historique des conversations</h2>
+                    <button onclick="toggleHistory()" class="text-gray-400 hover:text-white">✕</button>
+                </div>
+                <div id="history-content" class="p-6 overflow-y-auto max-h-96">
+                    <!-- Populated by JS -->
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const API_BASE = 'http://localhost:4000';
+        let currentResponse = '';
+        let currentPrompt = '';
+
+        // Load stats and recent conversations on page load
+        document.addEventListener('DOMContentLoaded', function() {
+            loadStats();
+            loadRecentConversations();
+        });
+
+        async function submitQuery() {
+            const queryInput = document.getElementById('query-input');
+            const projectInput = document.getElementById('project-input');
+            const contextInput = document.getElementById('context-input');
+            const aiSelector = document.getElementById('ai-selector');
+            const submitBtn = document.getElementById('submit-btn');
+            
+            const query = queryInput.value.trim();
+            if (!query) {
+                alert('Veuillez saisir une question');
+                return;
+            }
+            
+            const aiTarget = aiSelector.value;
+            const project = projectInput.value.trim() || null;
+            const context = contextInput.value.trim() || null;
+            
+            // UI Loading state
+            submitBtn.textContent = '⏳ Traitement...';
+            submitBtn.classList.add('loading');
+            
+            try {
+                let endpoint = '';
+                let payload = { message: query, project, context };
+                
+                if (aiTarget === 'ollama') {
+                    endpoint = '/mcp/chat';
+                    payload.agent = 'ollama';
+                } else if (aiTarget === 'perplexity') {
+                    endpoint = '/mcp/chat';
+                    payload.agent = 'perplexity';
+                } else {
+                    endpoint = '/mcp/optimize-prompt';
+                    payload = { original_prompt: query, target_ai: aiTarget, context, project };
+                }
+                
+                const response = await fetch(API_BASE + endpoint, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload)
+                });
+                
+                const data = await response.json();
+                
+                if (data.optimized_prompt) {
+                    currentPrompt = data.optimized_prompt;
+                    showPrompt(currentPrompt);
+                    
+                    if (data.response) {
+                        currentResponse = data.response;
+                        showResponse(currentResponse, aiTarget);
+                    }
+                } else if (data.response) {
+                    currentResponse = data.response;
+                    currentPrompt = data.optimized_prompt || '';
+                    showResponse(currentResponse, aiTarget);
+                    if (currentPrompt) showPrompt(currentPrompt);
+                }
+                
+                // Refresh stats and recent
+                loadStats();
+                loadRecentConversations();
+                
+            } catch (error) {
+                alert('Erreur: ' + error.message);
+            } finally {
+                submitBtn.textContent = '🚀 Envoyer';
+                submitBtn.classList.remove('loading');
+            }
+        }
+
+        function showResponse(response, aiUsed) {
+            const responseArea = document.getElementById('response-area');
+            const responseContent = document.getElementById('response-content');
+            
+            responseContent.textContent = response;
+            responseArea.classList.remove('hidden');
+            responseArea.classList.add('fade-in');
+        }
+
+        function showPrompt(prompt) {
+            const promptArea = document.getElementById('prompt-area');
+            const promptContent = document.getElementById('prompt-content');
+            
+            promptContent.textContent = prompt;
+            promptArea.classList.remove('hidden');
+            promptArea.classList.add('fade-in');
+        }
+
+        function copyResponse() {
+            navigator.clipboard.writeText(currentResponse);
+            const btn = document.getElementById('copy-response-btn');
+            btn.textContent = '✅ Copié!';
+            setTimeout(() => btn.textContent = '📋 Copier', 2000);
+        }
+
+        function copyPrompt() {
+            navigator.clipboard.writeText(currentPrompt);
+            const btn = document.getElementById('copy-prompt-btn');
+            btn.textContent = '✅ Copié!';
+            setTimeout(() => btn.textContent = '📋 Copier le Prompt', 2000);
+        }
+
+        async function loadStats() {
+            try {
+                const response = await fetch(API_BASE + '/mcp/status');
+                const stats = await response.json();
+                
+                const totalConvs = Object.values(stats.ai_usage || {}).reduce((a, b) => a + b, 0);
+                document.getElementById('total-convs').textContent = totalConvs;
+                document.getElementById('week-convs').textContent = stats.recent_activity || 0;
+                
+                // AI-specific counts
+                const aiUsage = stats.ai_usage || {};
+                const ollamaCount = Object.keys(aiUsage).filter(k => k.includes('ollama')).reduce((sum, k) => sum + aiUsage[k], 0);
+                const perplexityCount = aiUsage['perplexity-pro'] || 0;
+                const promptCount = Object.keys(aiUsage).filter(k => k.includes('optimize')).reduce((sum, k) => sum + aiUsage[k], 0);
+                
+                document.getElementById('ollama-count').textContent = ollamaCount;
+                document.getElementById('perplexity-count').textContent = perplexityCount;
+                document.getElementById('prompt-count').textContent = promptCount;
+                
+            } catch (error) {
+                console.error('Erreur chargement stats:', error);
+            }
+        }
+
+        async function loadRecentConversations() {
+            try {
+                const response = await fetch(API_BASE + '/mcp/conversations?limit=5');
+                const conversations = await response.json();
+                
+                const container = document.getElementById('recent-conversations');
+                container.innerHTML = '';
+                
+                conversations.forEach(conv => {
+                    const div = document.createElement('div');
+                    div.className = 'text-xs bg-white/5 rounded p-3 cursor-pointer hover:bg-white/10 transition-colors';
+                    div.onclick = () => showConversationDetails(conv);
+                    
+                    const aiIcon = conv.ai_used.includes('ollama') ? '🦙' : 
+                                  conv.ai_used.includes('perplexity') ? '🔍' : '🤖';
+                    
+                    div.innerHTML = `
+                        <div class="flex items-center gap-2 mb-1">
+                            <span>${aiIcon}</span>
+                            <span class="font-medium">${conv.ai_used}</span>
+                        </div>
+                        <div class="text-gray-300 truncate">${conv.query.substring(0, 60)}...</div>
+                        <div class="text-gray-500 text-xs mt-1">${new Date(conv.timestamp).toLocaleDateString()}</div>
+                    `;
+                    
+                    container.appendChild(div);
+                });
+                
+            } catch (error) {
+                console.error('Erreur chargement conversations:', error);
+            }
+        }
+
+        function showConversationDetails(conv) {
+            currentResponse = conv.response;
+            currentPrompt = conv.optimized_prompt || '';
+            
+            showResponse(conv.response, conv.ai_used);
+            if (currentPrompt) showPrompt(currentPrompt);
+            
+            // Fill form with conversation details
+            document.getElementById('query-input').value = conv.query;
+            if (conv.project) document.getElementById('project-input').value = conv.project;
+        }
+
+        function toggleHistory() {
+            const modal = document.getElementById('history-modal');
+            if (modal.classList.contains('hidden')) {
+                loadFullHistory();
+                modal.classList.remove('hidden');
+            } else {
+                modal.classList.add('hidden');
+            }
+        }
+
+        async function loadFullHistory() {
+            try {
+                const response = await fetch(API_BASE + '/mcp/conversations?limit=50');
+                const conversations = await response.json();
+                
+                const container = document.getElementById('history-content');
+                container.innerHTML = '';
+                
+                conversations.forEach(conv => {
+                    const div = document.createElement('div');
+                    div.className = 'bg-white/5 rounded-lg p-4 mb-4 hover:bg-white/10 transition-colors cursor-pointer';
+                    div.onclick = () => {
+                        showConversationDetails(conv);
+                        toggleHistory();
+                    };
+                    
+                    const aiIcon = conv.ai_used.includes('ollama') ? '🦙' : 
+                                  conv.ai_used.includes('perplexity') ? '🔍' : '🤖';
+                    
+                    div.innerHTML = `
+                        <div class="flex justify-between items-start mb-2">
+                            <div class="flex items-center gap-2">
+                                <span>${aiIcon}</span>
+                                <span class="font-medium">${conv.ai_used}</span>
+                                ${conv.project ? `<span class="text-xs bg-blue-600 px-2 py-1 rounded">${conv.project}</span>` : ''}
+                            </div>
+                            <span class="text-xs text-gray-400">${new Date(conv.timestamp).toLocaleString()}</span>
+                        </div>
+                        <div class="text-sm font-medium mb-2">${conv.query}</div>
+                        <div class="text-xs text-gray-300 truncate">${conv.response.substring(0, 150)}...</div>
+                    `;
+                    
+                    container.appendChild(div);
+                });
+                
+            } catch (error) {
+                console.error('Erreur chargement historique:', error);
+            }
+        }
+
+        // Keyboard shortcuts
+        document.addEventListener('keydown', function(e) {
+            if (e.ctrlKey && e.key === 'Enter') {
+                submitQuery();
+            }
+        });
+    </script>
+</body>
+</html>

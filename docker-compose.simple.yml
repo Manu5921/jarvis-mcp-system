@@ -1,0 +1,43 @@
+version: '3.8'
+
+services:
+  # AI Memory Hub - Backend simple
+  api:
+    build:
+      context: ./backend-simple
+      dockerfile: Dockerfile
+    ports:
+      - "8001:8000"
+    environment:
+      - OLLAMA_HOST=host.docker.internal:11434
+      - PERPLEXITY_API_KEY=${PERPLEXITY_API_KEY}
+    volumes:
+      - ./data:/app/data
+      - ./backend-simple:/app:cached
+    restart: unless-stopped
+    networks:
+      - ai-hub
+
+  # Frontend statique simple
+  web:
+    build:
+      context: ./frontend-simple
+      dockerfile: Dockerfile
+    ports:
+      - "3000:80"
+    environment:
+      - API_URL=http://localhost:8001
+    volumes:
+      - ./frontend-simple:/usr/share/nginx/html:cached
+    restart: unless-stopped
+    networks:
+      - ai-hub
+    depends_on:
+      - api
+
+networks:
+  ai-hub:
+    driver: bridge
+
+volumes:
+  ai_data:

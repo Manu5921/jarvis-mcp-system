@@ -1,0 +1,141 @@
+{
+  "training_problems": [
+    {
+      "id": "problem_01",
+      "level": "débutant",
+      "title": "Analyse simple - Structure de projet",
+      "instruction": "Analyse la structure du projet /Users/manu/Documents/DEV/digital-agency-ai/restaurant-app et identifie le framework utilisé",
+      "expected_workflow": [
+        "LS /Users/manu/Documents/DEV/digital-agency-ai/restaurant-app",
+        "Read package.json",
+        "Analyse Next.js framework"
+      ],
+      "forbidden_response_patterns": ["semble être", "probablement Next.js"],
+      "required_facts": ["Next.js version exacte", "dépendances principales", "structure src/"]
+    },
+    {
+      "id": "problem_02", 
+      "level": "débutant",
+      "title": "Identification technologies",
+      "instruction": "Quelles sont les technologies exactes utilisées dans /Users/manu/Documents/DEV/digital-agency-ai/agents/01-design-agent ?",
+      "expected_workflow": [
+        "LS du répertoire agent",
+        "Read package.json si présent",
+        "Glob **/*.{js,ts,json}",
+        "Read fichiers config"
+      ],
+      "validation_criteria": ["Technologies précises", "Versions si disponibles", "Configuration détectée"]
+    },
+    {
+      "id": "problem_03",
+      "level": "intermédiaire", 
+      "title": "Analyse architecture multi-fichiers",
+      "instruction": "Comment fonctionne le système de coordination entre agents dans /Users/manu/Documents/DEV/digital-agency-ai/agents/00-orchestrator ?",
+      "expected_workflow": [
+        "LS du répertoire orchestrator",
+        "Read master-config.json",
+        "Read fichiers coordination/",
+        "Analyse patterns de communication"
+      ],
+      "complexity": "multi_file_analysis"
+    },
+    {
+      "id": "problem_04",
+      "level": "intermédiaire",
+      "title": "Détection de patterns de code",
+      "instruction": "Quels sont les types de workflows implémentés dans /Users/manu/Documents/DEV/digital-agency-ai/agents/02-webdev-agent/workflows ?",
+      "expected_workflow": [
+        "LS workflows/",
+        "Glob **/*.ts dans workflows",
+        "Read échantillons de fichiers",
+        "Analyse patterns communs"
+      ],
+      "validation_criteria": ["Liste exhaustive workflows", "Technologies par workflow", "Patterns identifiés"]
+    },
+    {
+      "id": "problem_05",
+      "level": "intermédiaire",
+      "title": "Analyse de configuration complexe", 
+      "instruction": "Comment est configuré le système de monitoring dans /Users/manu/Documents/DEV/digital-agency-ai/monitoring ?",
+      "expected_workflow": [
+        "LS monitoring/",
+        "Read prometheus.yml",
+        "Read grafana-dashboard.json", 
+        "Read alerts/"
+      ],
+      "complexity": "config_analysis"
+    },
+    {
+      "id": "problem_06",
+      "level": "avancé",
+      "title": "Intégrations et APIs",
+      "instruction": "Quelles intégrations externes sont configurées dans /Users/manu/Documents/DEV/digital-agency-ai/integrations ?",
+      "expected_workflow": [
+        "LS integrations/",
+        "LS apis/ mcp/ webhooks/",
+        "Read fichiers d'intégration", 
+        "Analyse configurations API"
+      ],
+      "validation_criteria": ["APIs identifiées", "Configuration détaillée", "Webhooks mappés"]
+    },
+    {
+      "id": "problem_07",
+      "level": "avancé",
+      "title": "Analyse système de tests",
+      "instruction": "Quelle est la stratégie de tests mise en place dans /Users/manu/Documents/DEV/digital-agency-ai/tests ?",
+      "expected_workflow": [
+        "LS tests/",
+        "LS unit/ integration/ e2e/",
+        "Read fichiers tests",
+        "Analyse coverage et patterns"
+      ],
+      "complexity": "test_strategy_analysis"
+    },
+    {
+      "id": "problem_08",
+      "level": "avancé", 
+      "title": "Photo Engine Analysis",
+      "instruction": "Comment fonctionne le photo-engine-3.0 dans /Users/manu/Documents/DEV/digital-agency-ai/photo-engine-3.0 ?",
+      "expected_workflow": [
+        "LS photo-engine-3.0/",
+        "Read README.md",
+        "Read package.json",
+        "Analyse fichiers principaux"
+      ],
+      "validation_criteria": ["Fonctionnalités exactes", "APIs utilisées", "Architecture"]
+    },
+    {
+      "id": "problem_09",
+      "level": "expert",
+      "title": "Analyse projet client complet",
+      "instruction": "Analyse complète du projet client /Users/manu/Documents/DEV/digital-agency-ai/projects/client-cabinet-juridique-avocat",
+      "expected_workflow": [
+        "LS projet complet",
+        "Read tous les configs",
+        "Analyse architecture", 
+        "Évaluation complétude"
+      ],
+      "complexity": "full_project_analysis",
+      "time_limit": "10_minutes"
+    },
+    {
+      "id": "problem_10",
+      "level": "expert",
+      "title": "Architecture globale et recommandations",
+      "instruction": "Analyse l'architecture globale de digital-agency-ai et propose 3 améliorations concrètes",
+      "expected_workflow": [
+        "Analyse structure complète",
+        "Read documentations clés",
+        "Analyse patterns transversaux",
+        "Recommandations basées sur faits"
+      ],
+      "validation_criteria": ["Vision d'ensemble factuelle", "Recommandations précises", "Justifications techniques"]
+    }
+  ],
+  "progression_rules": {
+    "validation_required": "Chaque problème doit être validé avant le suivant",
+    "score_minimum": 7,
+    "retry_allowed": 2,
+    "feedback_mandatory": "Correction détaillée si échec"
+  }
+}
