@@ -13,7 +13,7 @@ import uuid
 import os
 from contextlib import asynccontextmanager
 from datetime import datetime, timedelta
-from typing import Dict, List, Any, Optional, Union, Set
+from typing import Dict, List, Any, Optional, Union, Set, Tuple
 from pathlib import Path
 
 from fastapi import FastAPI, HTTPException, status, WebSocket, WebSocketDisconnect
@@ -88,6 +88,7 @@ def normalize_tool_args(tool_name: str, tool_args: Dict[str, Any]) -> Dict[str, 
     
     if "path" in normalized:
         original = normalized["path"]
+        logger.warning(f"🕵️ PRE-SANITIZE (path): TYPE='{type(normalized['path'])}', REPR='{repr(normalized['path'])}', VALUE='{normalized['path']}'")
         # Apply sanitization BEFORE normalization
         sanitized = sanitize_path(normalized["path"])
         normalized["path"] = normalize_path(sanitized)
@@ -95,6 +96,7 @@ def normalize_tool_args(tool_name: str, tool_args: Dict[str, Any]) -> Dict[str, 
     
     if "file_path" in normalized:
         original = normalized["file_path"]
+        logger.warning(f"🕵️ PRE-SANITIZE (file_path): TYPE='{type(normalized['file_path'])}', REPR='{repr(normalized['file_path'])}', VALUE='{normalized['file_path']}'")
         # Apply sanitization BEFORE normalization
         sanitized = sanitize_path(normalized["file_path"])
         normalized["file_path"] = normalize_path(sanitized)
@@ -134,6 +136,42 @@ def normalize_path(path: str, root: str = "/data") -> str:
     logger.info(f"🔧 PATH NORMALIZE: '{path}' → '{result}'")
     return result
 
+import os # Ensure os is imported at the top of the file if not already
+
+def extract_clean_path(message: str, keyword_to_find: str) -> Optional[str]:
+    '''
+    Extracts a path segment that starts with keyword_to_find from a message string.
+    The path is assumed to follow the keyword and is terminated by the earliest of space, newline, or colon.
+    Returns the normalized path segment including the keyword_to_find if found.
+    e.g., message="...ls digital-agency-ai/src ...", keyword_to_find="digital-agency-ai" -> "digital-agency-ai/src"
+    '''
+    start_idx = message.find(keyword_to_find)
+    if start_idx == -1:
+        return None
+
+    # Determine the end of the path string from start_idx
+    space_end = message.find(" ", start_idx)
+    newline_end = message.find("\n", start_idx) # Use actual newline character
+    colon_end = message.find(":", start_idx)
+
+    possible_ends = [e for e in [space_end, newline_end, colon_end] if e != -1]
+
+    end_idx = len(message) # Default to end of message if no delimiters found
+    if possible_ends:
+        end_idx = min(possible_ends)
+
+    # Extract the raw path segment
+    raw_path_segment = message[start_idx:end_idx].strip()
+
+    # Normalize the extracted path segment.
+    # os.path.normpath removes trailing slashes and resolves ., .. if present.
+    if raw_path_segment:
+        # If keyword_to_find was absolute, raw_path_segment will be absolute.
+        # If keyword_to_find was relative, raw_path_segment will be relative.
+        # normpath is fine with both.
+        return os.path.normpath(raw_path_segment)
+    return None
+
 # HTTP Client configuration for long AI responses
 def get_resilient_http_client(read_timeout: float = 180.0) -> httpx.AsyncClient:
     """Get HTTP client optimized for long AI responses"""
@@ -144,6 +182,36 @@ def get_resilient_http_client(read_timeout: float = 180.0) -> httpx.AsyncClient:
         pool=90.0          # Pool timeout
     )
     return httpx.AsyncClient(timeout=timeout)
+
+def calculate_mcp_validation_score(tools_used: List[str], tool_results: Dict[str, Any]) -> int:
+    score = 0
+    # Ensure tool_results is structured like {"LS": {"success": True, ...}}
+    # Tools_used here refers to tools that were *attempted* and have an entry in tool_results.
+
+    # Score for individual tools succeeding
+    if tool_results.get("LS", {}).get("success"):
+        score += 3
+        # LS is in tools_used if it was attempted; success is checked via tool_results
+
+    if tool_results.get("Read", {}).get("success"):
+        score += 3
+
+    if tool_results.get("Glob", {}).get("success"):
+        score += 2
+
+    # Bonus for multiple successful tools
+    successful_tool_executions = 0
+    # Iterate over actual keys in tool_results to see what was run
+    for tool_name in tool_results.keys():
+        if tool_results[tool_name].get("success"):
+            # Consider only main tools for this specific bonus, or adjust as needed
+            if tool_name in ["LS", "Read", "Glob"]:
+                successful_tool_executions +=1
+
+    if successful_tool_executions >= 2: # If at least two of the main tools succeeded
+        score += 2
+
+    return min(score, 10)
 
 # Logging setup
 logging.basicConfig(
@@ -314,7 +382,7 @@ class MCPClient:
         """Call a tool via MCP protocol"""
         try:
             # 🔧 NORMALISATION DÉFENSIVE : S'applique à TOUS les flux d'exécution
-            logger.error(f"🧭 MCPClient.call_tool() → TOOL: {tool_name} → ARGS: {arguments}")
+            logger.info(f"🧭 MCPClient.call_tool() → TOOL: {tool_name} → ARGS: {arguments}")
             normalized_arguments = normalize_tool_args(tool_name, arguments)
             
             response = await self.client.post(
@@ -392,11 +460,19 @@ class AgentManager:
     """Enhanced Agent Manager with MCP integration"""
     
     @staticmethod
-    async def call_ollama(message: str, context: str = None, session_id: str = None) -> str:
+    async def call_ollama(message: str, context: str = None, session_id: str = None) -> Tuple[str, List[str], Dict[str, Any]]:
         """Enhanced Ollama call with MCP integration and file tools"""
+        # Initialize these at the function scope to ensure they are always defined for return
+        tools_successfully_used = []
+        tool_execution_details = {}
+        response_text = ""
+
         try:
             # 🔥 FORÇAGE ABSOLU - FORMATION JARVIS MCP AVEC OUTILS OBLIGATOIRES
             if "ollama" in mcp_clients:
+                # tools_successfully_used and tool_execution_details are already function-scoped
+                # and initialized at the start of the 'try' block.
+                # No need for 'current_run_...' versions here.
                 message_lower = message.lower()
                 tools_to_call = []
                 
@@ -442,14 +518,19 @@ class AgentManager:
                             break
                     
                     # 🔧 FORÇAGE ÉTAPE 1: LS OBLIGATOIRE
-                    tools_to_call.append(("LS", {"path": target_path}))
-                    logger.error(f"🕵️ APPEL DIRECT OUTIL #1: LS | PATH: {target_path} | MESSAGE_LENGTH: {len(message)}")
-                    logger.info(f"📁 FORMATION: LS forcé sur {target_path}")
+                    if "\n" in target_path or "EXIGENCE" in target_path or "EXIGENCE:" in target_path:
+                        logger.error(f"🚫 INVALID FORCED LS PATH DETECTED: '{repr(target_path)}'. Skipping LS tool.")
+                    else:
+                        tools_to_call.append(("LS", {"path": target_path}))
+                        logger.warning(f"🕵️ FORCED TOOL ADD: LS | TARGET_PATH: {target_path} | MSG_START: {repr(message[:100])}")
+                        logger.error(f"🕵️ APPEL DIRECT OUTIL #1: LS | PATH: {target_path} | MESSAGE_LENGTH: {len(message)}")
+                        logger.info(f"📁 FORMATION: LS forcé sur {target_path}")
                     
                     # 🔧 FORÇAGE ÉTAPE 2: READ package.json SI PERTINENT
                     if any(word in message_lower for word in ["framework", "technologies", "package", "dependencies"]):
                         package_path = f"{target_path}/package.json"
                         tools_to_call.append(("Read", {"file_path": package_path}))
+                        logger.warning(f"🕵️ FORCED TOOL ADD: Read | PACKAGE_PATH: {package_path} | MSG_START: {repr(message[:100])}")
                         logger.info(f"📄 FORMATION: Read forcé sur {package_path}")
                     
                     # 🔧 FORÇAGE ÉTAPE 3: GLOB SI WORKFLOWS/FICHIERS MENTIONNÉS
@@ -459,52 +540,67 @@ class AgentManager:
                             tools_to_call.append(("Glob", {"pattern": "**/*.{js,ts}", "path": glob_path}))
                         else:
                             tools_to_call.append(("Glob", {"pattern": "**/*.{js,ts,json}", "path": target_path}))
+                        logger.warning(f"🕵️ FORCED TOOL ADD: Glob | PATTERN: {tools_to_call[-1][1].get('pattern')} | PATH: {tools_to_call[-1][1].get('path')} | MSG_START: {repr(message[:100])}")
                         logger.info(f"🔍 FORMATION: Glob forcé sur patterns")
                 
                 else:
                     # Fallback: détection basique pour compatibilité (seulement si forçage n'a rien ajouté)
                     if any(word in message_lower for word in ["ls", "list", "structure", "répertoire", "dossier"]):
                         # Extract path from message and convert to container path
-                        path_keywords = ["/Users/", "digital-agency-ai", "restaurant-app", "agents/"]
+                        # Order matters: more specific keywords (longer, more absolute) first.
+                        path_keywords_map = {
+                            "/Users/manu/Documents/DEV/digital-agency-ai": "/data/digital-agency-ai", # Full local path example
+                            "agents/": "/data/digital-agency-ai/agents/", # Agents folder (ensure keyword ends with / if it's a dir)
+                            "restaurant-app": "/data/digital-agency-ai/restaurant-app", # Specific module
+                            "digital-agency-ai": "/data/digital-agency-ai" # Project root keyword (least specific)
+                        }
                         detected_path = None
-                        for keyword in path_keywords:
-                            if keyword in message:
-                                # Extract the full path
-                                start = message.find(keyword)
-                                # Look for space OR newline as path delimiter
-                                space_end = message.find(" ", start)
-                                newline_end = message.find("\n", start)
+                        extracted_segment_for_log = None
+
+                        for keyword_to_search, container_root_for_keyword in path_keywords_map.items():
+                            path_segment_found = extract_clean_path(message, keyword_to_search)
+
+                            if path_segment_found:
+                                logger.warning(f"🕵️ EXTRACT_CLEAN_PATH LOGIC: keyword='{keyword_to_search}', input_message_snippet='{repr(message[:150])}', extracted_segment='{repr(path_segment_found)}'")
+                                extracted_segment_for_log = path_segment_found
                                 
-                                # Use the closest delimiter
-                                if space_end == -1 and newline_end == -1:
-                                    end = len(message)
-                                elif space_end == -1:
-                                    end = newline_end
-                                elif newline_end == -1:
-                                    end = space_end
-                                else:
-                                    end = min(space_end, newline_end)
-                                    
-                                original_path = message[start:end].strip()
-                                
-                                # 🔧 CONVERSION CHEMIN CONTAINER
-                                if "/Users/manu/Documents/DEV/digital-agency-ai" in original_path:
-                                    # Convert to container mounted path
-                                    container_path = original_path.replace("/Users/manu/Documents/DEV/digital-agency-ai", "/data/digital-agency-ai")
-                                    detected_path = container_path
-                                elif "digital-agency-ai" in original_path and not original_path.startswith("/"):
-                                    # Relative path - check if it already contains digital-agency-ai
-                                    if original_path.startswith("digital-agency-ai"):
-                                        detected_path = f"/data/{original_path}"
+                                if path_segment_found.startswith("/data/"): # Already an absolute /data path
+                                    detected_path = os.path.normpath(path_segment_found)
+                                elif keyword_to_search.startswith("/Users/"): # Keyword was a full local path
+                                    # path_segment_found is like "/Users/manu/Documents/DEV/digital-agency-ai/src"
+                                    # We need the part relative to keyword_to_search: "src"
+                                    relative_to_keyword = path_segment_found[len(keyword_to_search):].lstrip('/')
+                                    if not relative_to_keyword and path_segment_found == keyword_to_search: # Extracted exactly the keyword
+                                        detected_path = os.path.normpath(container_root_for_keyword)
                                     else:
-                                        detected_path = f"/data/digital-agency-ai/{original_path}"
-                                else:
-                                    detected_path = original_path
-                                break
-                    
-                        if detected_path:
-                            logger.error(f"🕵️ APPEL DIRECT OUTIL #3 (FALLBACK): LS | PATH: {detected_path} | EXTRACTED_FROM: {original_path}")
-                            tools_to_call.append(("LS", {"path": detected_path}))
+                                        detected_path = os.path.normpath(os.path.join(container_root_for_keyword, relative_to_keyword))
+                                else: # Keyword is a simple token like "digital-agency-ai" or "agents/"
+                                    # path_segment_found is like "digital-agency-ai/src" or "agents/01-design-agent"
+                                    # container_root_for_keyword is like "/data/digital-agency-ai" or "/data/digital-agency-ai/agents/"
+                                    
+                                    # Get the part of path_segment_found that is "after" the keyword_to_search token
+                                    path_relative_to_keyword_token = path_segment_found
+                                    if path_segment_found.startswith(keyword_to_search):
+                                         path_relative_to_keyword_token = path_segment_found[len(keyword_to_search):].lstrip('/')
+
+                                    # If keyword_to_search ended with '/' (e.g. "agents/"), container_root_for_keyword also ends with '/'
+                                    # os.path.join handles this correctly.
+                                    # e.g. join("/data/digital-agency-ai/agents/", "01-design-agent")
+                                    if not path_relative_to_keyword_token and path_segment_found == keyword_to_search: # Extracted exactly the keyword
+                                        detected_path = os.path.normpath(container_root_for_keyword)
+                                    else:
+                                        detected_path = os.path.normpath(os.path.join(container_root_for_keyword, path_relative_to_keyword_token))
+                                logger.warning(f"🕵️ DETECTED_PATH CONSTRUCTION (Fallback): final_detected_path='{repr(detected_path)}' from keyword='{keyword_to_search}' and segment='{repr(path_segment_found)}'")
+                                break # Found a keyword and processed, stop searching
+
+                        if detected_path: # Only proceed if a path was detected
+                            if "\n" in detected_path or "EXIGENCE" in detected_path or "EXIGENCE:" in detected_path:
+                                logger.error(f"🚫 INVALID FALLBACK LS PATH DETECTED: '{repr(detected_path)}'. Skipping LS tool.")
+                            else:
+                                # The original tools_to_call.append and its associated logger.warning follow here
+                                logger.warning(f"🕵️ FALLBACK TOOL ADD: LS | DETECTED_PATH: {detected_path} | RAW_EXTRACTED: {extracted_segment_for_log}")
+                                if not any(t[0] == "LS" and t[1].get("path") == detected_path for t in tools_to_call):
+                                    tools_to_call.append(("LS", {"path": detected_path}))
                     
                     # Fallback Read
                     if any(word in message_lower for word in ["read", "contenu", "package.json", "fichier"]):
@@ -548,6 +644,7 @@ class AgentManager:
                 tool_results = []
                 collected_data = []  # Pour la couche de résilience
                 
+                logger.info(f"🛠️ PRE-NORMALIZATION tools_to_call (AgentManager loop): {tools_to_call}")
                 # 🧹 NORMALISATION GLOBALE: S'applique à TOUS les tools_to_call
                 logger.warning(f"🧹 NORMALISATION: Starting with {len(tools_to_call)} tools: {[t[0] for t in tools_to_call]}")
                 normalized_tools = []
@@ -731,11 +828,84 @@ Utilisez LS pour explorer, Read pour lire les fichiers
                                 if match:
                                     return match.group(1).replace('\n', '\\n').replace('\\"', '"')
                             return content
-                    return content
+                    response_text = content
+                else:
+                    response_text = "Erreur: Réponse MCP Ollama invalide"
+
+            else: # This else corresponds to 'if "ollama" in mcp_clients:'
+                # Fallback to direct Ollama if MCP not available
+                prompt = message
+            if context:
+                prompt = f"Context: {context}\n\nQuestion: {message}"
+
+            async with get_resilient_http_client(180.0) as client:
+                response = await client.post(
+                    f"http://{OLLAMA_HOST}/api/generate",
+                    json={
+                        "model": "llama3.2:3b",
+                        "prompt": prompt,
+                        "stream": False,
+                        "options": {
+                            "temperature": 0.7,
+                            "top_p": 0.9
+                        }
+                    }
+                )
                 
-                return "Erreur: Réponse MCP Ollama invalide"
+                if response.status_code == 200:
+                    data = response.json()
+                    response_text = data.get("response", "Erreur: pas de réponse d'Ollama")
+                else:
+                    response_text = f"Erreur Ollama: HTTP {response.status_code}"
+
+            # Populate tool execution details from collected_data
+
+            # Process collected_data if tools were run in the MCP path
+            # This block is INSIDE the 'if "ollama" in mcp_clients:' block
+            if 'collected_data' in locals() and collected_data: # locals() check is robust
+                logger.info(f"🔄 AGENT_MANAGER: Processing collected_data for return: {collected_data}")
+                # tools_successfully_used and tool_execution_details are already initialized (function-scope)
+                for item in collected_data:
+                    tool_name = item.get("tool")
+                    if not tool_name:
+                        continue
+                    success_status = item.get("success", False)
+                    tool_execution_details[tool_name] = { # Populate function-scoped dict
+                        "success": success_status,
+                        "summary": item.get("summary", ""),
+                        "recovered": item.get("recovered", False)
+                    }
+                    if success_status:
+                        if tool_name not in tools_successfully_used: # Populate function-scoped list
+                            tools_successfully_used.append(tool_name)
+
+                logger.info(f"🔄 AGENT_MANAGER: Processed tools_successfully_used: {tools_successfully_used}")
+                logger.info(f"🔄 AGENT_MANAGER: Processed tool_execution_details: {repr(tool_execution_details)[:500]}")
+            else:
+                # If collected_data was not populated (e.g. no tools in tools_to_call)
+                # tools_successfully_used and tool_execution_details will remain [] and {} as initialized.
+                logger.info("🔄 AGENT_MANAGER: No collected_data to process for tool metadata return (tools_successfully_used and tool_execution_details will remain empty).")
+
+            # ... existing logic to build 'enhanced_prompt' using 'tool_results' string list ...
+            # ... existing call to Ollama's generate_response to get the main 'response_text' ...
+            # Ensure 'response_text' (initialized at the start of try block)
+            # is assigned the text from Ollama's generate_response call.
+            # This part of the code (Ollama generate call and response_text assignment) is assumed to be correct from previous steps.
+            # Example:
+            # ollama_gen_response_obj = await mcp_clients["ollama"].call_tool("generate_response", normalized_generate_args)
+            # if ollama_gen_response_obj and "content" in ollama_gen_response_obj:
+            #    # ... (extraction logic) ...
+            #    response_text = extracted_text_from_ollama_generate
+            # else:
+            #    response_text = "Erreur: Réponse MCP Ollama invalide après génération."
+
+            logger.info(f"🔄 AGENT_MANAGER: Returning from MCP tool path. Tools Used: {tools_successfully_used}, Details: {repr(tool_execution_details)[:200]}")
+            return response_text, tools_successfully_used, tool_execution_details
             
-            # Fallback to direct Ollama if MCP not available
+        # This 'else' handles the case where 'ollama' is NOT in mcp_clients (direct Ollama fallback)
+        else:
+            # response_text is already initialized to "" at the start of the try block.
+            # tools_successfully_used is [], tool_execution_details is {} (function-scoped).
             prompt = message
             if context:
                 prompt = f"Context: {context}\n\nQuestion: {message}"
@@ -753,16 +923,18 @@ Utilisez LS pour explorer, Read pour lire les fichiers
                         }
                     }
                 )
-                
                 if response.status_code == 200:
                     data = response.json()
-                    return data.get("response", "Erreur: pas de réponse d'Ollama")
+                    response_text = data.get("response", "Erreur: pas de réponse d'Ollama")
                 else:
-                    return f"Erreur Ollama: HTTP {response.status_code}"
+                    response_text = f"Erreur Ollama: HTTP {response.status_code}"
+
+            logger.info("🔄 AGENT_MANAGER: Returning from direct Ollama fallback path. No MCP tool metadata.")
+            return response_text, [], {} # Return empty list/dict for tools
                     
         except Exception as e:
             logger.error(f"Error in enhanced call_ollama: {e}")
-            return f"Erreur connexion Ollama: {str(e)}"
+            return f"Erreur connexion Ollama: {str(e)}", [], {}
     
     @staticmethod
     async def call_perplexity(message: str, context: str = None) -> str:
@@ -1404,65 +1576,124 @@ async def handle_mcp_chat(request: ChatRequest) -> ChatResponse:
         else:
             agent = request.agent
         
+        # Initialize variables at a scope visible to the final ChatResponse return
         response_text = ""
+        tools_executed_list_for_response = []
+        actual_tool_outcomes_dict_for_response = {}
+        tool_based_score = 0
         
         if agent == "ollama":
-            response_text = await AgentManager.call_ollama(enhanced_message, request.context, request.session_id)  # 🔧 Use enhanced message
+            ollama_specific_response_text, tools_from_ollama, outcomes_from_ollama = \
+                await AgentManager.call_ollama(enhanced_message, request.context, request.session_id)
+
+            response_text = ollama_specific_response_text
+
+            # CRITICAL: Ensure these assignments happen to the variables used in ChatResponse
+            tools_executed_list_for_response = tools_from_ollama
+            actual_tool_outcomes_dict_for_response = outcomes_from_ollama
+
+            tool_based_score = calculate_mcp_validation_score(tools_executed_list_for_response, actual_tool_outcomes_dict_for_response)
+            logger.info(f"🔧 MCTOOL_SCORE: Actual tool execution score: {tool_based_score}/10 for session {session_id}. Tools executed: {tools_executed_list_for_response}, Outcomes: {repr(actual_tool_outcomes_dict_for_response)[:500]}")
         elif agent == "perplexity":
-            response_text = await AgentManager.call_perplexity(enhanced_message, request.context)  # 🔧 Use enhanced message
+            response_text = await AgentManager.call_perplexity(enhanced_message, request.context)
+            # tools_executed_list_for_response and actual_tool_outcomes_dict_for_response remain empty
+            # tool_based_score remains 0
         else:
             response_text = "Agent non supporté"
+            # tools_executed_list_for_response and actual_tool_outcomes_dict_for_response remain empty
+            # tool_based_score remains 0
         
         response_time_ms = int((time.time() - start_time) * 1000)
+
+        # text_validation_result and final_score calculation will use 'response_text' and 'tool_based_score'
+        # which are now correctly populated based on the agent path.
+
+        text_validation_result = validation_middleware.validate_response(response_text, validation_context)
+        logger.info(f"🔧 TEXT_VALIDATION_SCORE: Middleware text analysis score: {text_validation_result.get('score')}/10 for session {session_id}")
+
+        final_score = tool_based_score # Start with the tool-based score
+        final_errors = []
+        final_feedback = [f"Tool execution score (actual): {tool_based_score}/10."] # Start feedback with tool score
+
+        # Add points/errors from text validation (excluding its tool scoring part)
+        if text_validation_result.get('errors'):
+            for err_msg in text_validation_result['errors']:
+                if "Outils manquants" not in err_msg: # Avoid double penalty from text-based tool check
+                    final_errors.append(err_msg)
+                    # Simplified score adjustment from text validation errors
+                    if "Phrases interdites" in err_msg: final_score = max(0, final_score - 3)
+                    if "Contenu insuffisamment factuel" in err_msg: final_score = max(0, final_score - 2) # Slightly higher penalty
+
+        if text_validation_result.get('feedback'):
+             for fb_msg in text_validation_result['feedback']:
+                if "Outils utilisés" not in fb_msg : final_feedback.append(fb_msg)
         
-        # 🔧 VALIDATION MIDDLEWARE - Post-traitement et validation
-        validation_result = validation_middleware.validate_response(response_text, validation_context)
+        # Ensure score is within bounds 0-10
+        final_score = max(0, min(10, final_score))
+        final_passed = final_score >= 7
         
-        if validation_context.get('validation_active') and not validation_result['passed']:
-            # Génération du feedback correctif
+        response_to_send_to_user = response_text # Use response_text (which is ollama_response_text or perplexity response)
+        agent_status_for_db = agent # 'agent' variable should be defined from earlier logic in handle_mcp_chat
+
+        if validation_context.get('validation_active') and not final_passed:
+            # Construct a temporary context for generating feedback message
+            # to reflect the new consolidated list of errors.
+            current_issue_summary_for_feedback = {
+                'score': final_score,
+                'errors': final_errors
+            }
+            # Add a generic tool error if tool score is low and not already covered by other specific text errors
+            if tool_based_score < 7 and not any("Outils manquants" in e for e in final_errors):
+                # Check if required_tools were actually missing based on tool_based_score logic
+                required_by_middleware = validation_context.get('required_tools', [])
+                actually_missing = []
+                for req_tool in required_by_middleware:
+                    if not actual_tool_outcomes_dict.get(req_tool, {}).get("success"):
+                        actually_missing.append(req_tool)
+                if actually_missing:
+                    current_issue_summary_for_feedback['errors'].append(f"Outils requis ({', '.join(actually_missing)}) non exécutés avec succès.")
+
             correction_feedback = validation_middleware.generate_correction_feedback(
-                validation_result, validation_context
+                current_issue_summary_for_feedback, validation_context
             )
-            
-            logger.warning(f"🚫 Validation failed for session {session_id}: {validation_result['score']}/10")
-            
-            # Ajout du feedback à la réponse
-            enhanced_response = f"{response_text}\n\n{correction_feedback}"
-            
-            conversation_id = DatabaseManager.store_conversation(
-                request.message, enhanced_response, f"{agent}_failed_validation", 
-                request.project, request.context, response_time_ms
-            )
-            
-            return ChatResponse(
-                response=enhanced_response,
-                agent_used=f"{agent}_validation_failed",
-                timestamp=datetime.now().isoformat(),
-                response_time_ms=response_time_ms,
-                conversation_id=conversation_id,
-                session_id=session_id,
-                validation_score=validation_result['score'],
-                validation_passed=False
-            )
+            logger.warning(f"🚫 MCP_VALIDATION_FINAL: Combined Validation failed for session {session_id}: {final_score}/10. Errors: {final_errors}")
+            response_to_send_to_user = f"{response_text}\n\n{correction_feedback}"
+            agent_status_for_db = f"{agent}_validation_failed"
+        elif validation_context.get('validation_active'):
+             logger.info(f"✅ MCP_VALIDATION_FINAL: Combined Validation passed for session {session_id}: {final_score}/10.")
+             agent_status_for_db = agent
         
-        # Validation réussie ou pas de validation
-        if validation_context.get('validation_active'):
-            logger.info(f"✅ Validation passed for session {session_id}: {validation_result['score']}/10")
-        
+        # Store conversation using the potentially modified response and agent status
         conversation_id = DatabaseManager.store_conversation(
-            request.message, response_text, agent, 
-            request.project, request.context, response_time_ms
+            request.message, response_to_send_to_user, agent_status_for_db,
+            request.project, request.context, response_time_ms # response_time_ms should be defined earlier in the function
         )
         
+        # These logs should be placed just before the final 'return ChatResponse(...)'
+        # Ensure that 'tools_executed_list' and 'actual_tool_outcomes_dict' here are the
+        # variables intended to be passed to ChatResponse.
+
+        log_prefix = "🔧 FINAL_CHAT_RESPONSE_PREP"
+        if agent == "ollama": # This 'agent' variable is from the outer scope, correctly reflecting the chosen agent
+            log_prefix += " (Ollama Path)"
+
+        logger.info(f"{log_prefix}: tools_executed_list='{repr(tools_executed_list_for_response)}'")
+        logger.info(f"{log_prefix}: actual_tool_outcomes_dict='{repr(actual_tool_outcomes_dict_for_response)}'")
+        logger.info(f"{log_prefix}: final_score='{final_score}', final_passed='{final_passed}'")
+        logger.info(f"{log_prefix}: response_to_send_to_user (length)='{len(response_to_send_to_user)}'")
+        logger.info(f"{log_prefix}: agent_status_for_db='{agent_status_for_db}'")
+
         return ChatResponse(
-            response=response_text,
-            agent_used=agent,
+            response=response_to_send_to_user,
+            agent_used=agent_status_for_db, # Use the status reflecting validation outcome
             timestamp=datetime.now().isoformat(),
-            response_time_ms=response_time_ms,
+            response_time_ms=response_time_ms, # This should be defined from start_time at the beginning of handle_mcp_chat
             conversation_id=conversation_id,
             session_id=session_id,
-            validation_score=validation_result.get('score'),
-            validation_passed=validation_result.get('passed', True)
+            tools_used=tools_executed_list_for_response,      # Populate with actual tools executed
+            mcp_results=actual_tool_outcomes_dict_for_response, # Populate with actual tool outcomes
+            validation_score=final_score,
+            validation_passed=final_passed
         )
         
     except Exception as e:
