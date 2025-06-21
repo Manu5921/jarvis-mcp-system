@@ -57,6 +57,32 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
+# Ensure 'import os' is at the top of the file (it is, at line 4)
+# Ensure 'logger' is defined if the log line is kept, or remove the log line.
+# For this subtask, the log line will be commented out to avoid dependency on specific logger name.
+
+def normalize_path(path: str, root: str = "/data") -> str:
+    if not path:
+        return path
+    # import os # 'os' is already imported at the top of server_advanced.py
+
+    if os.path.isabs(path):
+        candidate = os.path.normpath(path)
+    else:
+        candidate = os.path.normpath(os.path.join(root, path))
+
+    new_parts = [] # Renamed to avoid conflict if this file also has 'parts'
+    for part_segment in candidate.split(os.sep):
+        if part_segment and (not new_parts or new_parts[-1] != part_segment):
+            new_parts.append(part_segment)
+
+    result = os.sep.join(new_parts)
+    if candidate.startswith('/') and not result.startswith('/'):
+        result = '/' + result
+
+    # logger.info(f"🔧 PATH NORMALIZE (ollama_server): '{path}' → '{result}'") # Optional: logging
+    return result
+
 # MCP Protocol Models
 class MCPInitRequest(BaseModel):
     client_info: Dict[str, str]
@@ -688,6 +714,8 @@ async def tool_ls(raw_request: Request) -> MCPToolResponse:
         try:
             arguments = validate_ls_arguments(raw_arguments)
             path = arguments["path"]
+            path = normalize_path(path)
+            logger.info(f"🔧 LS Tool - Path normalized to: {path}") # Added log for visibility
             recursive = arguments.get("recursive", False)
             include_hidden = arguments.get("include_hidden", False)
             logger.info(f"✅ LS Tool - Arguments validés: path={path}, recursive={recursive}, hidden={include_hidden}")
@@ -811,6 +839,8 @@ async def tool_read(raw_request: Request) -> MCPToolResponse:
             )
             
         file_path = arguments["file_path"]
+        file_path = normalize_path(file_path)
+        logger.info(f"🔧 Read Tool - File path normalized to: {file_path}") # Added log
         encoding = arguments.get("encoding", "utf-8")
         max_lines = arguments.get("max_lines", 1000)
         
@@ -971,6 +1001,8 @@ async def tool_glob(raw_request: Request) -> MCPToolResponse:
         
         pattern = arguments["pattern"]
         base_path = arguments.get("path", ".")
+        base_path = normalize_path(base_path)
+        logger.info(f"🔧 Glob Tool - Base path normalized to: {base_path}") # Added log
         max_results = arguments.get("max_results", 100)
         
         # Convert to absolute path
@@ -1041,6 +1073,8 @@ async def tool_grep(raw_request: Request) -> MCPToolResponse:
         
         pattern = arguments["pattern"]
         base_path = arguments.get("path", ".")
+        base_path = normalize_path(base_path)
+        logger.info(f"🔧 Grep Tool - Base path normalized to: {base_path}") # Added log
         file_pattern = arguments.get("file_pattern", "*")
         
         base_path_obj = Path(base_path)
